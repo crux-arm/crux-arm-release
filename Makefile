@@ -45,8 +45,8 @@ COLLECTIONS = odroidxu4-arm core-arm core
 else ifeq ("$(DEVICE_OPTIMIZATION)", "arm64")
 COLLECTIONS = core-arm64 core
 # Optimization for RaspberryPi 4 devices
-else ifeq ("$(DEVICE_OPTIMIZATION)", "raspberrypi4")
-COLLECTIONS = raspberrypi4-arm64 core-arm64 core
+else ifeq ("$(DEVICE_OPTIMIZATION)", "raspberrypi3")
+COLLECTIONS = raspberrypi3-arm64 core-arm64 core
 endif
 
 # Force pkgmk to rebuilt packages
