@@ -17,8 +17,8 @@ PORTS_STAGE0_FILE = $(WORKSPACE_DIR)ports.stage0
 PORTS_STAGE1_FILE = $(WORKSPACE_DIR)ports.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = bash binutils coreutils dash diffutils file filesystem findutils gawk gcc \
-	grep glibc gzip m4 make patch perl pkgconf pkgutils prt-get python3 sed
+PORTS_STAGE0 = automake bash binutils coreutils dash diffutils file filesystem findutils \
+	gawk gettext gcc grep glibc gzip m4 make patch perl pkgconf pkgutils prt-get python3 sed
 
 PORTS_BLACKLIST = glibc-32
 
@@ -60,9 +60,9 @@ endif
 
 # Force pkgmk to rebuilt packages
 ifeq ($(PKGMK_FORCE),yes)
-PKGMK_CMD_OPTS=-f
+PKGMK_CMD_OPTS = -is -f
 else
-PKGMK_CMD_OPTS=
+PKGMK_CMD_OPTS = -is
 endif
 
 .PHONY: help
@@ -164,15 +164,6 @@ $(PORTS_STAGE1_FILE): prepare-stage1-file
 clean-stage1-file: $(PORTS_STAGE1_FILE)
 	@rm -f $(PORTS_STAGE1_FILE)
 
-# Build ports specified by input variable PORTS
-.PHONY: build
-build: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
-	@for PORT in $(PORTS); do \
-		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		( cd $$portdir && $(PKGMK_COMMAND) -d -is -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
-	done
-
 # Download port sources specified by input variable PORTS
 .PHONY: download
 download: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
@@ -180,6 +171,25 @@ download: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
 		echo "[`date +'%F %T'`] Download sources for port: $$PORT" ; \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		( cd $$portdir && $(PKGMK_COMMAND) -do -cf $(PKGMK_CONFIG_FILE)); \
+	done
+
+# Build ports specified by input variable PORTS
+.PHONY: build
+build: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+	@for PORT in $(PORTS); do \
+		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
+		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		( cd $$portdir && $(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
+	done
+
+# Build ports and install them specified by input variable PORTS
+.PHONY: build-and-install
+build-and-install: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+	@for PORT in $(PORTS); do \
+		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
+		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		( cd $$portdir && $(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
+		( prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT ); \
 	done
 
 # Create a tar file with stage0 packages
@@ -243,7 +253,7 @@ stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK
 	@echo "[`date +'%F %T'`] Entering chroot enrivonment"
 	@PORTS="`cat $(PORTS_STAGE1_FILE)`"
 	@sudo chroot $(ROOTFS_DIR) /bin/bash --login -c \
-		"cd /workspace && $(MAKE) build PORTS=\"`cat $(PORTS_STAGE1_FILE)`\" PKGMK_FORCE=yes" || exit 0
+		"cd /workspace && $(MAKE) build-and-install PORTS=\"`cat $(PORTS_STAGE1_FILE)`\" PKGMK_FORCE=yes" || exit 0
 	@echo "[`date +'%F %T'`] Exiting chroot enrivonment"
 	@echo "[`date +'%F %T'`] - Unmounting $(ROOTFS_DIR)/workspace"
 	@sudo umount $(ROOTFS_DIR)/workspace
