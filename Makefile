@@ -18,7 +18,7 @@ PORTS_STAGE1_FILE = $(WORKSPACE_DIR)ports.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
 PORTS_STAGE0 = automake bash binutils coreutils dash diffutils file filesystem findutils gawk gettext \
-	gcc grep glibc gzip libtool m4 make meson patch perl pkgconf pkgutils prt-get python3 sed tar
+	gcc grep glibc gzip libtool m4 make patch perl pkgconf pkgutils prt-get python3 sed tar
 
 PORTS_BLACKLIST = glibc-32
 
