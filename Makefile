@@ -17,11 +17,12 @@ PORTS_STAGE0_FILE = $(WORKSPACE_DIR)ports.stage0
 PORTS_STAGE1_FILE = $(WORKSPACE_DIR)ports.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = automake bash binutils bison coreutils dash diffutils file filesystem \
-	findutils gawk gettext gcc grep glibc gzip libtool m4 make patch perl pkgconf \
-	pkgutils prt-get python3 sed tar
+PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
+	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make patch perl \
+	pkgconf pkgutils prt-get python3 sed tar
 
-PORTS_BLACKLIST = glibc-32
+# ports that will not take part in the release
+PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash
 
 PKGMK_CONFIG_FILE = $(WORKSPACE_DIR)pkgmk.conf
 PKGMK_COMPRESSION_MODE = "xz"
@@ -69,12 +70,20 @@ endif
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo '  help                        Show this help information'
-	@echo '  build PORTS="port1 port2"   Build ports in order'
-	@echo '  stage0                      Build stage0 ports'
-	@echo '  stage1                      Build stage1 ports (inside a chroot environment)'
-	@echo '  bootstrap                   Build all stages'
-	@echo '  release                     Build CRUX-ARM release'
+	@echo '  help         Show this help information'
+	@echo '  build        Build the ports that are passed in the PORTS variable'
+	@echo '               (e.g: make build PORTS="glibc gcc")'
+	@echo '  stage0       Build stage0 ports (compiled against your host)'
+	@echo '  stage1       Build stage1 ports (inside a chroot environment)'
+	@echo '  bootstrap    Build all stages'
+	@echo '  release      Build CRUX-ARM release'
+	@echo
+	@echo 'Additional variables to all targets:'
+	@echo
+	@echo '  PKGMK_FORCE=yes       Build port(s) even if package(s) already exists'
+	@echo '  DEVICE_OPTIMIZATION=  Device for which we want to optimize the build'
+	@echo '                        It uses .mk files containing device CFLAGS'
+	@echo '                        (e.g: DEVICE_OPTIMIZATION=odroidxu4)'
 
 .PHONY: check-root
 check-root:
@@ -189,8 +198,9 @@ build-and-install: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
 	@for PORT in $(PORTS); do \
 		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		( cd $$portdir && $(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
-		( prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT ); \
+		cd $$portdir && \
+			$(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) && \
+			prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
 	done
 
 # Create a tar file with stage0 packages
@@ -217,7 +227,7 @@ stage0: $(PORTS_STAGE0_FILE)
 #
 # - Create rootfs with packages built in stage0
 #
-# - Chroot into rootfs and build all ports
+# - Chroot into rootfs and build/install all of them in dependency order
 #
 .PHONY: stage1
 stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
@@ -268,16 +278,18 @@ stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK
 bootstrap:
 	@echo "[`date +'%F %T'`] Bootstrap started"
 	@echo "[`date +'%F %T'`] - Stage 0"
-	$(MAKE) stage0
+	$(MAKE) stage0 2>&1 | tee stage0.log
+	@grep -e 'failed\.' -e 'succeeded\.' stage0.log
 	@echo "[`date +'%F %T'`] - Stage 1"
-	$(MAKE) stage1
+	$(MAKE) stage1 2>&1 | tee stage1.log
+	@grep -e 'failed\.' -e 'succeeded\.' stage1.log
 	@echo "[`date +'%F %T'`] Bootstrap completed"
 
-# TODO: upload release to mirror
+# TODO: improve and add feature: upload to mirror
 .PHONY: release
 release: $(ROOTFS_DIR)
 	$(MAKE) bootstrap
-	@cd $(ROOTFS_DIR) && tar cvJf ../crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz *
+	@cd $(ROOTFS_DIR) && sudo tar cvJf ../crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz *
 
 # TODO: upload packages to mirror
 .PHONY: release-packages
