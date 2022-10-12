@@ -128,6 +128,9 @@ prepare-pkgmkconf:
 	@echo "export CFLAGS=\"$(CFLAGS)\"" > $(PKGMK_CONFIG_FILE)
 	@echo "export CXXFLAGS=\"$(CFLAGS)\"" >> $(PKGMK_CONFIG_FILE)
 	@echo "PKGMK_COMPRESSION_MODE=\"$(PKGMK_COMPRESSION_MODE)\"" >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_DOWNLOAD_PROG="curl"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(PKGMK_CONFIG_FILE)
+
 $(PKGMK_CONFIG_FILE): prepare-pkgmkconf
 
 .PHONY: clean-pkgmkconf
