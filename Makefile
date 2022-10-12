@@ -112,6 +112,7 @@ check-optimization:
 # TODO: Use tags or branches to have an static or updated release
 .PHONY: prepare-ports
 prepare-ports:
+	@echo "[`date +'%F %T'`] Getting sources for ports"
 	@for COLL in $(COLLECTIONS); do \
 		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
 			case $$COLL in \
@@ -155,6 +156,7 @@ clean-prtgetconf: $(PRTGET_CONFIG_FILE)
 # Generates ports.stage0 (list of ports required to create the stage0)
 .PHONY: prepare-stage0-file
 prepare-stage0-file: $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
+	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE0_FILE)"
 	@prt-get --config=$(PRTGET_CONFIG_FILE) quickdep $(PORTS_STAGE0) > $(PORTS_STAGE0_FILE)
 $(PORTS_STAGE0_FILE): prepare-stage0-file
 
@@ -165,6 +167,7 @@ clean-stage0-file: $(PORTS_STAGE0_FILE)
 # Generates ports.stage1 (list of ports required to create the stage1)
 .PHONY: prepare-stage1-file
 prepare-stage1-file: $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
+	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE1_FILE)"
 	@prt-get --config=$(PRTGET_CONFIG_FILE) list > $(PORTS_STAGE1_FILE).tmp
 	@for bl in $(PORTS_BLACKLIST); do \
 		sed "/^$$bl/d" -i $(PORTS_STAGE1_FILE).tmp; \
@@ -291,10 +294,19 @@ bootstrap:
 # TODO: improve and add feature: upload to mirror
 .PHONY: release
 release: $(ROOTFS_DIR)
-	$(MAKE) bootstrap
-	@cd $(ROOTFS_DIR) && sudo tar cvJf ../crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz *
+	@echo "[`date +'%F %T'`] Cleaning up"
+	@test ! -d $(ROOTFS_DIR)/workspace || \
+		sudo rmdir -f $(ROOTFS_DIR)/workspace
+	@sudo rm -f $(ROOTFS_DIR)/etc/pkgmk.conf && \
+		sudo cp $(PORTS_DIR)/core-arm/pkgutils/pkgmk.conf $(ROOTFS_DIR)/etc/pkgmk.conf
+	@sudo rm -f $(ROOTFS_DIR)/etc/prt-get.conf && \
+		sudo cp $(PORTS_DIR)/core-arm/prt-get/prt-get.conf $(ROOTFS_DIR)/etc/prt-get.conf
+	@echo "[`date +'%F %T'`] Building crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz"
+	@cd $(ROOTFS_DIR) && \
+		sudo tar cJf ../crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz *
+	@echo "[`date +'%F %T'`] Release completed"
 
-# TODO: upload packages to mirror
+# TODO: improve and add feature: upload to mirror
 .PHONY: release-packages
 release-packages: $(PORTS)
 	@find $(PORTS) -type f -name '*.pkg.tar.$(PKGMK_COMPRESSION_MODE)'
