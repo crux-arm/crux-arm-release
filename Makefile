@@ -71,24 +71,27 @@ endif
 help:
 	@echo "Targets:"
 	@echo '  help         Show this help information'
-	@echo '  build        Build the ports that are passed in the PORTS variable'
-	@echo '               (e.g: make build PORTS="glibc gcc")'
-	@echo '  stage0       Build stage0 ports (compiled against your host)'
-	@echo '  stage1       Build stage1 ports (inside a chroot environment)'
-	@echo '  bootstrap    Build all stages'
+	@echo '  stage0       Build stage0 ports compiled against your host'
+	@echo '  stage1       Build stage1 ports inside chroot environment'
+	@echo '  bootstrap    Build all stages and bootstrap the rootfs'
 	@echo '  release      Build CRUX-ARM release'
 	@echo
 	@echo 'Additional variables to all targets:'
 	@echo
-	@echo '  PKGMK_FORCE=yes       Build port(s) even if package(s) already exists'
-	@echo '  DEVICE_OPTIMIZATION=  Device for which we want to optimize the build'
-	@echo '                        It uses .mk files containing device CFLAGS'
-	@echo '                        (e.g: DEVICE_OPTIMIZATION=odroidxu4)'
+	@echo '  DEVICE_OPTIMIZATION  Device for which we want to optimize the build'
+	@echo '                       e.g: make stage1 DEVICE_OPTIMIZATION=odroidxu4'
 
 .PHONY: check-root
 check-root:
 	@if [ "$(shell id -u)" != "0" ]; then \
 		echo "You need to be root to do this."; \
+		exit 1; \
+	fi
+
+.PHONY: check-is-chroot
+check-is-chroot: check-root
+	@if [ ! -d /workspace ]; then \
+		echo "You are not inside chroot environment."; \
 		exit 1; \
 	fi
 
@@ -180,40 +183,28 @@ $(PORTS_STAGE1_FILE): prepare-stage1-file
 clean-stage1-file: $(PORTS_STAGE1_FILE)
 	@rm -f $(PORTS_STAGE1_FILE)
 
-# Download port sources specified by input variable PORTS
-.PHONY: download
-download: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
-	@for PORT in $(PORTS); do \
-		echo "[`date +'%F %T'`] Download sources for port: $$PORT" ; \
+# Build all ports in stage0
+.PHONY: build-stage0
+build-stage0: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		( cd $$portdir && $(PKGMK_COMMAND) -do -cf $(PKGMK_CONFIG_FILE)); \
-	done
-
-# Build ports specified by input variable PORTS
-.PHONY: build
-build: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
-	@for PORT in $(PORTS); do \
-		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
 	done
 
-# Build ports and install them specified by input variable PORTS
-.PHONY: build-and-install
-build-and-install: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
-	@for PORT in $(PORTS); do \
-		echo "[`date +'%F %T'`] Building port: $$PORT" ; \
+# Build all ports in stage1. Since ports are built in dependency order,
+# after each port is built, it is installed.
+# CAVEAT: This target must be run within the chroot environment as it installs
+# packages and could be a serious problem if run outside of the jail.
+.PHONY: build-stage1
+build-stage1: check-is-chroot check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		cd $$portdir && \
 			$(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) && \
 			prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
 	done
-
-# Create a tar file with stage0 packages
-.PHONY: backup-packages-stage0
-backup-packages-stage0:
-	@echo "[`date +'%F %T'`] Backup packages from stage0"
-	@cd $(PORTS_DIR) && tar cf $(WORKSPACE_DIR)packages.stage0.tar `find . -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 #------------------------------------------------------------------------------
 # STAGE0
@@ -222,7 +213,7 @@ backup-packages-stage0:
 #
 .PHONY: stage0
 stage0: $(PORTS_STAGE0_FILE)
-	$(MAKE) build PORTS="`cat $(PORTS_STAGE0_FILE)`" PKGMK_FAKEROOT=yes
+	$(MAKE) build-stage0 PKGMK_FAKEROOT=yes
 
 #------------------------------------------------------------------------------
 # STAGE1
@@ -236,11 +227,14 @@ stage0: $(PORTS_STAGE0_FILE)
 # - Chroot into rootfs and build/install all of them in dependency order
 #
 .PHONY: stage1
-stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+stage1: $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+	@echo "[`date +'%F %T'`] Backup packages from stage0"
+	@cd $(PORTS_DIR) && \
+		tar cf $(WORKSPACE_DIR)packages.stage0.tar `find . -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 	@echo "[`date +'%F %T'`] Download port sources"
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
-		echo "[`date +'%F %T'`] - port: $$PORT" ; \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		echo "[`date +'%F %T'`] - port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_COMMAND) -do -cf $(PKGMK_CONFIG_FILE)); \
 	done
 	@echo "[`date +'%F %T'`] Creating rootfs for stage1 in $(ROOTFS_DIR)"
@@ -255,6 +249,7 @@ stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK
 	done
 	@echo "[`date +'%F %T'`] Installing extras"
 	@sudo cp -L /etc/resolv.conf $(ROOTFS_DIR)/etc/resolv.conf
+	@sudo mkdir $(ROOTFS_DIR)/workspace
 	@sudo ln -sf /workspace/pkgmk.conf $(ROOTFS_DIR)/etc/pkgmk.conf
 	@sudo ln -sf /workspace/prt-get.conf $(ROOTFS_DIR)/etc/prt-get.conf
 	@echo "[`date +'%F %T'`] Installing hacks to avoid host dependencies"
@@ -265,16 +260,14 @@ stage1: backup-packages-stage0 $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK
 	@echo "[`date +'%F %T'`] - Mounting /proc on $(ROOTFS_DIR)/proc"
 	@sudo mount --bind /proc $(ROOTFS_DIR)/proc
 	@echo "[`date +'%F %T'`] - Mounting $(WORKSPACE_DIR) on $(ROOTFS_DIR)/workspace"
-	@sudo mkdir $(ROOTFS_DIR)/workspace
 	@sudo mount --bind $(WORKSPACE_DIR) $(ROOTFS_DIR)/workspace
 	@echo "[`date +'%F %T'`] Entering chroot enrivonment"
 	@PORTS="`cat $(PORTS_STAGE1_FILE)`"
 	@sudo chroot $(ROOTFS_DIR) /bin/bash --login -c \
-		"cd /workspace && $(MAKE) build-and-install PORTS=\"`cat $(PORTS_STAGE1_FILE)`\" PKGMK_FORCE=yes" || exit 0
+		"cd /workspace && $(MAKE) build-stage1 PKGMK_FORCE=yes" || exit 0
 	@echo "[`date +'%F %T'`] Exiting chroot enrivonment"
 	@echo "[`date +'%F %T'`] - Unmounting $(ROOTFS_DIR)/workspace"
 	@sudo umount $(ROOTFS_DIR)/workspace
-	@sudo rmdir $(ROOTFS_DIR)/workspace
 	@echo "[`date +'%F %T'`] - Unmounting $(ROOTFS_DIR)/proc"
 	@sudo umount $(ROOTFS_DIR)/proc
 	@echo "[`date +'%F %T'`] - Unmounting $(ROOTFS_DIR)/dev"
@@ -296,7 +289,7 @@ bootstrap:
 release: $(ROOTFS_DIR)
 	@echo "[`date +'%F %T'`] Cleaning up"
 	@test ! -d $(ROOTFS_DIR)/workspace || \
-		sudo rmdir -f $(ROOTFS_DIR)/workspace
+		sudo rmdir $(ROOTFS_DIR)/workspace
 	@sudo rm -f $(ROOTFS_DIR)/etc/pkgmk.conf && \
 		sudo cp $(PORTS_DIR)/core-arm/pkgutils/pkgmk.conf $(ROOTFS_DIR)/etc/pkgmk.conf
 	@sudo rm -f $(ROOTFS_DIR)/etc/prt-get.conf && \
