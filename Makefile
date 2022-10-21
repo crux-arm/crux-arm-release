@@ -171,7 +171,7 @@ build-stage0: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
-		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
+		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
 
 # Build all ports in stage1. Since ports are built in dependency order,
@@ -183,9 +183,8 @@ build-stage1: check-is-chroot check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_C
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
-		cd $$portdir && \
-			$(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) && \
-			prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
+		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
+		prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
 	done
 
 #------------------------------------------------------------------------------
@@ -217,7 +216,7 @@ stage1: $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] - port: $$portdir" ; \
-		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)); \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)) || exit 1; \
 	done
 	@echo "[`date +'%F %T'`] Creating rootfs for stage1 in $(ROOTFS_DIR)"
 	@sudo mkdir -p $(ROOTFS_DIR)
