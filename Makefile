@@ -17,12 +17,12 @@ PORTS_STAGE0_FILE = $(WORKSPACE_DIR)ports.stage0
 PORTS_STAGE1_FILE = $(WORKSPACE_DIR)ports.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = automake attr bash binutils bison coreutils curl dash diffutils file \
+PORTS_STAGE0 = automake attr bash binutils bison coreutils curl diffutils file \
 	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make openssl \
-	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
+	patch perl pkg-config pkgutils prt-get sed tar util-linux
 
 # ports that will not take part in the release
-PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash
+PORTS_BLACKLIST = bin86 glibc-32
 
 PKGMK_CONFIG_FILE = $(WORKSPACE_DIR)pkgmk.conf
 PKGMK_COMPRESSION_MODE = xz
@@ -42,7 +42,7 @@ PKGMK_CMD = fakeroot pkgmk
 endif
 
 # Default pkgmk options
-PKGMK_CMD_OPTS = -is
+PKGMK_CMD_OPTS =
 # Force pkgmk to rebuilt packages
 ifeq ($(PKGMK_FORCE),yes)
 PKGMK_CMD_OPTS += -f
