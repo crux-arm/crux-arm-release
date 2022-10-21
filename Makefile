@@ -17,54 +17,35 @@ PORTS_STAGE0_FILE = $(WORKSPACE_DIR)ports.stage0
 PORTS_STAGE1_FILE = $(WORKSPACE_DIR)ports.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
-	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make patch perl \
-	pkgconf pkgutils prt-get python3 sed tar
+PORTS_STAGE0 = automake attr bash binutils bison coreutils curl dash diffutils file \
+	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make openssl \
+	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
 # ports that will not take part in the release
 PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash
 
 PKGMK_CONFIG_FILE = $(WORKSPACE_DIR)pkgmk.conf
-PKGMK_COMPRESSION_MODE = "xz"
+PKGMK_COMPRESSION_MODE = xz
 
 PRTGET_CONFIG_FILE = $(WORKSPACE_DIR)prt-get.conf
 
 # Optimization based on devices
 DEVICE_OPTIMIZATION = arm
-# Load CFLAGS for selected optimization (default: arm.mk)
-include $(DEVICE_OPTIMIZATION).mk
+# Load CFLAGS and COLLECTIONS for selected optimization
+include devices/$(DEVICE_OPTIMIZATION).mk
 
-# COLLECTIONS (port overlays) for each optimization
-#
-# This is a generic optimization for arm-linux-gnueabihf
-# For 32-bit based devices, using the hard-float version
-# of the "new" ABI (EABI), targeting armv7 and up
-ifeq ("$(DEVICE_OPTIMIZATION)", "arm")
-COLLECTIONS = core-arm core
-# Optimization for Odroid XU4 devices
-else ifeq ("$(DEVICE_OPTIMIZATION)", "odroidxu4")
-COLLECTIONS = odroidxu4-arm core-arm core
-# This is a generic optimization for aarch64-linux-gnu
-# For 64-bit based devices, targeting armv8 architecture
-else ifeq ("$(DEVICE_OPTIMIZATION)", "arm64")
-COLLECTIONS = core-arm64 core
-# Optimization for RaspberryPi 4 devices
-else ifeq ("$(DEVICE_OPTIMIZATION)", "raspberrypi3")
-COLLECTIONS = raspberrypi3-arm64 core-arm64 core
-endif
-
+# Default build command
+PKGMK_CMD = pkgmk
 # Use fakeroot command to build packages
 ifeq ($(PKGMK_FAKEROOT),yes)
-PKGMK_COMMAND = fakeroot pkgmk
-else
-PKGMK_COMMAND = pkgmk
+PKGMK_CMD = fakeroot pkgmk
 endif
 
+# Default pkgmk options
+PKGMK_CMD_OPTS = -is
 # Force pkgmk to rebuilt packages
 ifeq ($(PKGMK_FORCE),yes)
-PKGMK_CMD_OPTS = -is -f
-else
-PKGMK_CMD_OPTS = -is
+PKGMK_CMD_OPTS += -f
 endif
 
 .PHONY: help
@@ -129,9 +110,10 @@ $(PORTS_DIR): prepare-ports
 # Generates pkgmk.conf
 .PHONY: prepare-pkgmkconf
 prepare-pkgmkconf:
-	@echo "export CFLAGS=\"$(CFLAGS)\"" > $(PKGMK_CONFIG_FILE)
-	@echo "export CXXFLAGS=\"$(CFLAGS)\"" >> $(PKGMK_CONFIG_FILE)
-	@echo "PKGMK_COMPRESSION_MODE=\"$(PKGMK_COMPRESSION_MODE)\"" >> $(PKGMK_CONFIG_FILE)
+	@echo 'export CFLAGS="$(CFLAGS)"' > $(PKGMK_CONFIG_FILE)
+	@echo 'export CXXFLAGS="$(CFLAGS)"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'export MAKEFLAGS="-j$(shell nproc)"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_COMPRESSION_MODE="$(PKGMK_COMPRESSION_MODE)"' >> $(PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_DOWNLOAD_PROG="curl"' >> $(PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(PKGMK_CONFIG_FILE)
 
@@ -189,7 +171,7 @@ build-stage0: check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
-		( cd $$portdir && $(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
+		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ); \
 	done
 
 # Build all ports in stage1. Since ports are built in dependency order,
@@ -202,7 +184,7 @@ build-stage1: check-is-chroot check-optimization $(PKGMK_CONFIG_FILE) $(PRTGET_C
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		cd $$portdir && \
-			$(PKGMK_COMMAND) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) && \
+			$(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) && \
 			prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
 	done
 
@@ -235,7 +217,7 @@ stage1: $(PORTS_STAGE0_FILE) $(PORTS_STAGE1_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] - port: $$portdir" ; \
-		( cd $$portdir && $(PKGMK_COMMAND) -do -cf $(PKGMK_CONFIG_FILE)); \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)); \
 	done
 	@echo "[`date +'%F %T'`] Creating rootfs for stage1 in $(ROOTFS_DIR)"
 	@sudo mkdir -p $(ROOTFS_DIR)
