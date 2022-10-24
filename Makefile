@@ -28,7 +28,7 @@ PORTS_STAGE1_PENDING_FILE = $(WORKSPACE_DIR)/pending.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
 PORTS_STAGE0 = automake attr bash binutils bison coreutils curl dash diffutils file \
-	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make openssl \
+	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make openssl \
 	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
 # ports that will not take part in the release
