@@ -7,3 +7,6 @@ CFLAGS = -O2 -pipe -mfloat-abi=hard
 
 # Port collections required to build a generic arm release
 COLLECTIONS = core-arm core
+
+# Release file
+RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
