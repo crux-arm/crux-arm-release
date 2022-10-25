@@ -51,7 +51,9 @@ ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
 RELEASE_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
 
 # Optimization based on devices
+ifndef DEVICE_OPTIMIZATION
 DEVICE_OPTIMIZATION = arm
+endif
 # Load CFLAGS and COLLECTIONS for selected optimization
 include $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk
 
@@ -308,7 +310,6 @@ stage1:
 	@echo "[`date +'%F %T'`] Entering chroot enrivonment"
 	@sudo chroot $(ROOTFS_STAGE1_DIR) /bin/bash --login -c \
 		"cd /workspace && $(MAKE) build-stage1-packages PKGMK_FORCE=yes WORKSPACE_DIR=/workspace || exit 0"
-	@[ $? -ne 0 ] && echo "ERROR: Failure building stage1 packages" 
 	@echo "[`date +'%F %T'`] Exiting chroot enrivonment"
 	@echo "[`date +'%F %T'`] Unmounting $(ROOTFS_STAGE1_DIR)/workspace"
 	@sudo umount -f $(ROOTFS_STAGE1_DIR)/workspace
@@ -342,8 +343,7 @@ bootstrap:
 release: $(RELEASE_TAR_FILE)
 $(RELEASE_TAR_FILE): $(ROOTFS_STAGE1_DIR)
 	@echo "[`date +'%F %T'`] Cleaning up"
-	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || \
-		sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
+	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf && \
 		sudo cp $(PORTS_DIR)/core-arm/pkgutils/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf && \
