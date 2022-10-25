@@ -27,8 +27,8 @@ PORTS_STAGE1_FILE = $(WORKSPACE_DIR)/ports.stage1
 PORTS_STAGE1_PENDING_FILE = $(WORKSPACE_DIR)/pending.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = automake attr bash binutils bison coreutils curl dash diffutils file \
-	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make openssl \
+PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
+	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make \
 	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
 # ports that will not take part in the release
@@ -248,6 +248,17 @@ $(ROOTFS_STAGE1_DIR): $(ROOTFS_TAR_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FI
 	@sudo ln -sf /workspace/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo ln -sf /workspace/prt-get.conf $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
 
+
+.PHONY: download-stage1-sources
+download-stage1-sources: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
+	@echo "[`date +'%F %T'`] Downloading port sources"
+	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
+		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		echo "[`date +'%F %T'`] - port: $$portdir" ; \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)) || exit 1; \
+	done
+
+
 # Build all ports in stage1.
 # Since ports are built in dependency order, after each port is built, it is installed.
 # CAVEAT: This target must be run within the chroot environment as it installs packages
@@ -285,6 +296,7 @@ stage0:
 stage1:
 	@echo "[`date +'%F %T'`] Preparing chroot environment ($(ROOTFS_STAGE1_DIR))"
 	$(MAKE) prepare-stage1-rootfs
+	$(MAKE) download-stage1-sources
 	@echo "[`date +'%F %T'`] Cleaning up before entering into chroot environment"
 	$(MAKE) clean-prtgetconf
 	@echo "[`date +'%F %T'`] Mounting /dev on $(ROOTFS_STAGE1_DIR)/dev"
