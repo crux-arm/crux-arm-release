@@ -270,13 +270,13 @@ build-stage1-packages: check-is-chroot check-optimization $(PACKAGES_STAGE1_TAR_
 $(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
 	@test -f $(PORTS_STAGE1_PENDING_FILE) || cp $(PORTS_STAGE1_FILE) $(PORTS_STAGE1_PENDING_FILE)
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
-		grep $$PORT $(PORTS_STAGE1_PENDING_FILE) || continue; \
+		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep ^$$PORT$$ || continue; \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 		prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
-		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep -v $$PORT | sed 's|\n| |g' > $(PORTS_STAGE1_PENDING_FILE).tmp && \
-			mv  $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
+		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep -v ^$$PORT$$ | tr '\n' ' ' > $(PORTS_STAGE1_PENDING_FILE).tmp && \
+			mv $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE1_TAR_FILE)"
 	@tar cf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
