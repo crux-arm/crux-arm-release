@@ -27,8 +27,8 @@ PORTS_STAGE1_FILE = $(WORKSPACE_DIR)/ports.stage1
 PORTS_STAGE1_PENDING_FILE = $(WORKSPACE_DIR)/pending.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
-PORTS_STAGE0 = automake attr bash binutils bison coreutils curl diffutils file \
-	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make openssl \
+PORTS_STAGE0 = automake attr bash binutils bison coreutils diffutils file \
+	filesystem findutils gawk gettext gcc grep glibc gzip libtool m4 make \
 	patch perl pkg-config pkgutils prt-get sed tar util-linux
 
 # ports that will not take part in the release
@@ -51,7 +51,9 @@ ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
 RELEASE_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
 
 # Optimization based on devices
+ifndef DEVICE_OPTIMIZATION
 DEVICE_OPTIMIZATION = arm
+endif
 # Load CFLAGS and COLLECTIONS for selected optimization
 include $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk
 
@@ -248,6 +250,17 @@ $(ROOTFS_STAGE1_DIR): $(ROOTFS_TAR_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FI
 	@sudo ln -sf /workspace/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo ln -sf /workspace/prt-get.conf $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
 
+
+.PHONY: download-stage1-sources
+download-stage1-sources: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
+	@echo "[`date +'%F %T'`] Downloading port sources"
+	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
+		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		echo "[`date +'%F %T'`] - port: $$portdir" ; \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)) || exit 1; \
+	done
+
+
 # Build all ports in stage1.
 # Since ports are built in dependency order, after each port is built, it is installed.
 # CAVEAT: This target must be run within the chroot environment as it installs packages
@@ -257,13 +270,13 @@ build-stage1-packages: check-is-chroot check-optimization $(PACKAGES_STAGE1_TAR_
 $(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
 	@test -f $(PORTS_STAGE1_PENDING_FILE) || cp $(PORTS_STAGE1_FILE) $(PORTS_STAGE1_PENDING_FILE)
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
-		grep $$PORT $(PORTS_STAGE1_PENDING_FILE) || continue; \
+		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep ^$$PORT$$ || continue; \
 		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 		prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
-		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep -v $$PORT | sed 's|\n| |g' > $(PORTS_STAGE1_PENDING_FILE).tmp && \
-			mv  $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
+		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep -v ^$$PORT$$ | tr '\n' ' ' > $(PORTS_STAGE1_PENDING_FILE).tmp && \
+			mv $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE1_TAR_FILE)"
 	@tar cf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
@@ -285,6 +298,7 @@ stage0:
 stage1:
 	@echo "[`date +'%F %T'`] Preparing chroot environment ($(ROOTFS_STAGE1_DIR))"
 	$(MAKE) prepare-stage1-rootfs
+	$(MAKE) download-stage1-sources
 	@echo "[`date +'%F %T'`] Cleaning up before entering into chroot environment"
 	$(MAKE) clean-prtgetconf
 	@echo "[`date +'%F %T'`] Mounting /dev on $(ROOTFS_STAGE1_DIR)/dev"
@@ -296,7 +310,6 @@ stage1:
 	@echo "[`date +'%F %T'`] Entering chroot enrivonment"
 	@sudo chroot $(ROOTFS_STAGE1_DIR) /bin/bash --login -c \
 		"cd /workspace && $(MAKE) build-stage1-packages PKGMK_FORCE=yes WORKSPACE_DIR=/workspace || exit 0"
-	@[ $? -ne 0 ] && echo "ERROR: Failure building stage1 packages" 
 	@echo "[`date +'%F %T'`] Exiting chroot enrivonment"
 	@echo "[`date +'%F %T'`] Unmounting $(ROOTFS_STAGE1_DIR)/workspace"
 	@sudo umount -f $(ROOTFS_STAGE1_DIR)/workspace
@@ -330,8 +343,7 @@ bootstrap:
 release: $(RELEASE_TAR_FILE)
 $(RELEASE_TAR_FILE): $(ROOTFS_STAGE1_DIR)
 	@echo "[`date +'%F %T'`] Cleaning up"
-	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || \
-		sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
+	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf && \
 		sudo cp $(PORTS_DIR)/core-arm/pkgutils/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf && \
