@@ -48,7 +48,7 @@ ROOTFS_TAR_FILE = $(WORKSPACE_DIR)/rootfs.tar.xz
 ROOTFS_STAGE0_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage0.tar.xz
 ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
 
-RELEASE_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
+RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
 
 # Optimization based on devices
 ifndef DEVICE_OPTIMIZATION
@@ -341,15 +341,19 @@ bootstrap:
 #
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
-$(RELEASE_TAR_FILE): $(ROOTFS_STAGE1_DIR)
+$(ROOTFS_STAGE1_TAR_FILE): $(ROOTFS_STAGE1_DIR)
 	@echo "[`date +'%F %T'`] Cleaning up"
 	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
-	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf && \
-		sudo cp $(PORTS_DIR)/core-arm/pkgutils/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
-	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf && \
-		sudo cp $(PORTS_DIR)/core-arm/prt-get/prt-get.conf $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
-	@echo "[`date +'%F %T'`] Building $(RELEASE_TAR_FILE)"
+	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
+	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
+	@echo "[`date +'%F %T'`] Copying config files"
+	@sudo cp $(PORTS_DIR)/$(word 1, $(COLLECTIONS))/pkgutils/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
+	@sudo cp $(PORTS_DIR)/$(word 1, $(COLLECTIONS))/prt-get/prt-get.conf $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
+	@echo "[`date +'%F %T'`] Building $(ROOTFS_STAGE1_TAR_FILE)"
 	@cd $(ROOTFS_STAGE1_DIR) && \
-		sudo tar cJf $(RELEASE_TAR_FILE) * && \
-		sudo chown $(CURRENT_UID):$(CURRENT_GID) $(RELEASE_TAR_FILE)
+		sudo tar cJf $(ROOTFS_STAGE1_TAR_FILE) * && \
+		sudo chown $(CURRENT_UID):$(CURRENT_GID) $(ROOTFS_STAGE1_TAR_FILE)
+$(RELEASE_TAR_FILE): $(ROOTFS_STAGE1_TAR_FILE)
+	@echo "[`date +'%F %T'`] Using the final name $(RELEASE_TAR_FILE)"
+	@cd $(WORKSPACE_DIR) && ln -s $(ROOTFS_STAGE1_TAR_FILE) $(RELEASE_TAR_FILE)
 	@echo "[`date +'%F %T'`] Release completed"
