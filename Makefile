@@ -29,7 +29,7 @@ PORTS_STAGE1_PENDING_FILE = $(WORKSPACE_DIR)/pending.stage1
 # stage0 ports are the minimal base for creating a chroot where continue building ports
 PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
 	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make \
-	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
+	openssl patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
 # ports that will not take part in the release
 PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash
@@ -239,11 +239,11 @@ $(ROOTFS_STAGE0_TAR_FILE): $(PACKAGES_STAGE0_TAR_FILE) $(PRTGET_CONFIG_FILE) $(P
 #     $ make stage1 DEVICE_OPTIMIZATION=foo
 .PHONY: prepare-stage1-rootfs
 prepare-stage1-rootfs: $(ROOTFS_STAGE1_DIR)
-$(ROOTFS_STAGE1_DIR): $(ROOTFS_TAR_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
+$(ROOTFS_STAGE1_DIR): $(ROOTFS_STAGE0_TAR_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE)
 	@echo "[`date +'%F %T'`] Creating $(ROOTFS_STAGE1_DIR)"
 	@sudo mkdir $(ROOTFS_STAGE1_DIR) || exit 1
-	@echo "[`date +'%F %T'`] Decompressing $(ROOTFS_TAR_FILE) to $(ROOTFS_STAGE1_DIR)"
-	@sudo tar -C $(ROOTFS_STAGE1_DIR) -xf $(ROOTFS_TAR_FILE)
+	@echo "[`date +'%F %T'`] Decompressing $(ROOTFS_STAGE0_TAR_FILE) to $(ROOTFS_STAGE1_DIR)"
+	@sudo tar -C $(ROOTFS_STAGE1_DIR) -xf $(ROOTFS_STAGE0_TAR_FILE)
 	@echo "[`date +'%F %T'`] Installing extras"
 	@sudo cp -L /etc/resolv.conf $(ROOTFS_STAGE1_DIR)/etc/resolv.conf
 	@test -d $(ROOTFS_STAGE1_DIR)/workspace || sudo mkdir $(ROOTFS_STAGE1_DIR)/workspace
