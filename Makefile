@@ -346,6 +346,7 @@ $(ROOTFS_STAGE1_TAR_FILE): $(ROOTFS_STAGE1_DIR)
 	@test ! -d $(ROOTFS_STAGE1_DIR)/workspace || sudo rmdir $(ROOTFS_STAGE1_DIR)/workspace
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo rm -f $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
+	@sudo rm -rf $(ROOTFS_STAGE1_DIR)/var/lib/pkg/rejected/*
 	@echo "[`date +'%F %T'`] Copying config files"
 	@sudo cp $(PORTS_DIR)/$(word 1, $(COLLECTIONS))/pkgutils/pkgmk.conf $(ROOTFS_STAGE1_DIR)/etc/pkgmk.conf
 	@sudo cp $(PORTS_DIR)/$(word 1, $(COLLECTIONS))/prt-get/prt-get.conf $(ROOTFS_STAGE1_DIR)/etc/prt-get.conf
