@@ -7,6 +7,7 @@
 CRUX_ARM_VERSION = 3.7
 CRUX_ARM_GIT_PREFIX = https://github.com/crux-arm
 CRUX_GIT_PREFIX = git://crux.nu/ports
+CRUX_GIT_HASH = 2f90d87a2cc97cb07fc7d6226f5d9fce219bcc0f
 
 # This is the top dir where Makefile lives
 # We should use this with care, because it could harcode absolute paths in files
@@ -118,7 +119,7 @@ check-optimization:
 	fi
 
 # Clones all COLLECTIONS of ports required to generate the release
-# TODO: Use tags or branches to have an static or updated release
+# Upstream ports from CRUX's core is frozen to a certain version: $(CRUX_GIT_HASH)
 .PHONY: prepare-ports-dir
 prepare-ports-dir: $(PORTS_DIR)
 $(PORTS_DIR):
@@ -126,8 +127,11 @@ $(PORTS_DIR):
 	@for COLL in $(COLLECTIONS); do \
 		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
 			case $$COLL in \
-				core) git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_GIT_PREFIX)/$$COLL $(PORTS_DIR)/$$COLL ;; \
-				*-arm|*-arm64) git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
+				core) \
+					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_GIT_PREFIX)/$$COLL $(PORTS_DIR)/$$COLL ; \
+					cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ;; \
+				*-arm|*-arm64) \
+					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
 			esac \
 		fi \
 	done
@@ -203,7 +207,7 @@ $(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_F
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE0_TAR_FILE)"
-	@tar cjf $(PACKAGES_STAGE0_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
+	@tar caf $(PACKAGES_STAGE0_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 # Create a rootfs with stage0 packages
 .PHONY: build-stage0-rootfs
@@ -227,7 +231,7 @@ $(ROOTFS_STAGE0_TAR_FILE): $(PACKAGES_STAGE0_TAR_FILE) $(PRTGET_CONFIG_FILE) $(P
 	@echo "[`date +'%F %T'`] Installing hacks to avoid host dependencies"
 	@sudo ln -sf libnsl.so.3 $(ROOTFS_STAGE0_DIR)/usr/lib/libnsl.so.2
 	@echo "[`date +'%F %T'`] Creating $(ROOTFS_STAGE0_TAR_FILE)"
-	@cd $(ROOTFS_STAGE0_DIR) && sudo tar cjf $(ROOTFS_STAGE0_TAR_FILE) *
+	@cd $(ROOTFS_STAGE0_DIR) && sudo tar caf $(ROOTFS_STAGE0_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(ROOTFS_STAGE0_TAR_FILE)
 	@sudo rm -rf $(ROOTFS_STAGE0_DIR)
 
@@ -281,7 +285,7 @@ $(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_F
 			mv $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE1_TAR_FILE)"
-	@tar cjf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
+	@tar caf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 #------------------------------------------------------------------------------
 # STAGE0
