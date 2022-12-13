@@ -7,6 +7,7 @@
 CRUX_ARM_VERSION = 3.7
 CRUX_ARM_GIT_PREFIX = https://github.com/crux-arm
 CRUX_GIT_PREFIX = git://crux.nu/ports
+CRUX_GIT_HASH = 2f90d87a2cc97cb07fc7d6226f5d9fce219bcc0f
 
 # This is the top dir where Makefile lives
 # We should use this with care, because it could harcode absolute paths in files
@@ -116,7 +117,7 @@ check-optimization:
 	fi
 
 # Clones all COLLECTIONS of ports required to generate the release
-# TODO: Use tags or branches to have an static or updated release
+# Upstream ports from CRUX's core is frozen to a certain version: $(CRUX_GIT_HASH)
 .PHONY: prepare-ports-dir
 prepare-ports-dir: $(PORTS_DIR)
 $(PORTS_DIR):
@@ -124,8 +125,11 @@ $(PORTS_DIR):
 	@for COLL in $(COLLECTIONS); do \
 		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
 			case $$COLL in \
-				core) git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_GIT_PREFIX)/$$COLL $(PORTS_DIR)/$$COLL ;; \
-				*-arm|*-arm64) git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
+				core) \
+					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_GIT_PREFIX)/$$COLL $(PORTS_DIR)/$$COLL ; \
+					cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ;; \
+				*-arm|*-arm64) \
+					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
 			esac \
 		fi \
 	done
