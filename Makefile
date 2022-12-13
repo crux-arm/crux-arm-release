@@ -56,6 +56,8 @@ DEVICE_OPTIMIZATION = arm
 endif
 # Load CFLAGS and COLLECTIONS for selected optimization
 include $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk
+# Export variable to sub-make
+export DEVICE_OPTIMIZATION
 
 # Default build command
 PKGMK_CMD = pkgmk
