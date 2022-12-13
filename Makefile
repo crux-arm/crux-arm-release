@@ -201,7 +201,7 @@ $(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_F
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE0_TAR_FILE)"
-	@tar cf $(PACKAGES_STAGE0_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
+	@tar cjf $(PACKAGES_STAGE0_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 # Create a rootfs with stage0 packages
 .PHONY: build-stage0-rootfs
@@ -225,7 +225,7 @@ $(ROOTFS_STAGE0_TAR_FILE): $(PACKAGES_STAGE0_TAR_FILE) $(PRTGET_CONFIG_FILE) $(P
 	@echo "[`date +'%F %T'`] Installing hacks to avoid host dependencies"
 	@sudo ln -sf libnsl.so.3 $(ROOTFS_STAGE0_DIR)/usr/lib/libnsl.so.2
 	@echo "[`date +'%F %T'`] Creating $(ROOTFS_STAGE0_TAR_FILE)"
-	@cd $(ROOTFS_STAGE0_DIR) && sudo tar cf $(ROOTFS_STAGE0_TAR_FILE) *
+	@cd $(ROOTFS_STAGE0_DIR) && sudo tar cjf $(ROOTFS_STAGE0_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(ROOTFS_STAGE0_TAR_FILE)
 	@sudo rm -rf $(ROOTFS_STAGE0_DIR)
 
@@ -279,7 +279,7 @@ $(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_F
 			mv $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
 	done
 	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE1_TAR_FILE)"
-	@tar cf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
+	@tar cjf $(PACKAGES_STAGE1_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 #------------------------------------------------------------------------------
 # STAGE0
