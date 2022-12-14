@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Order alphanum and extract two values from each line (port and version) 
+filter() {
+  cat - | sort -u | \
+  while read line; do
+    port=${line/:*/}; port=$(basename $(dirname ${port}))
+    version=${line/*:/}; version=${version/*=/}
+    echo "$port $version"
+  done
+}
+
+TMP_DIR=$(mktemp -d)
+PORTS_DIR=${PORTS_DIR:-ports}
+
+OVERLAY_COLLECTIONS="core-arm core-arm64"
+
+
+if [ ! -d ${PORTS_DIR} ]; then
+  echo "ERROR, ports directory can't be found at '$PORTS_DIR'"
+  exit 1
+fi
+
+grep -H '^version=' ports/core/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/core.list
+for overlay in ${OVERLAY_COLLECTIONS}; do
+  grep -H '^version=' ports/${overlay}/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/${overlay}.list
+done
+
+printf '%-20s %10s %30s\n' "PORT" "VERSION" "OVERLAY VERSION"
+while read port_name core_port_version; do
+  for overlay in ${OVERLAY_COLLECTIONS}; do
+    if grep "${port_name} " ${TMP_DIR}/${overlay}.list > ${TMP_DIR}/${overlay}.match; then
+      overlay_port_version=$(cut -d' ' -f2 ${TMP_DIR}/${overlay}.match)
+      #echo "DEBUG::: ${core_port_version} vs ${overlay_port_version}"
+      if [ "${core_port_version}" != "${overlay_port_version}" ]; then
+        printf '%-20s %10s %30s\n' "${port_name}" "${core_port_version}" "${overlay_port_version} (${overlay})"
+      fi
+    fi
+  done
+
+done < ${TMP_DIR}/core.list
+
+rm -rf ${TMP_DIR}
