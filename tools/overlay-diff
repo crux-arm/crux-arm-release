@@ -32,7 +32,7 @@ done
 printf '%-20s %10s %30s\n' "PORT" "VERSION" "OVERLAY VERSION"
 while read port_name core_port_version; do
   for overlay in ${OVERLAY_COLLECTIONS}; do
-    if grep "${port_name} " ${TMP_DIR}/${overlay}.list > ${TMP_DIR}/${overlay}.match; then
+    if grep "^${port_name} " ${TMP_DIR}/${overlay}.list > ${TMP_DIR}/${overlay}.match; then
       overlay_port_version=$(cut -d' ' -f2 ${TMP_DIR}/${overlay}.match)
       #echo "DEBUG::: ${core_port_version} vs ${overlay_port_version}"
       if [ "${core_port_version}" != "${overlay_port_version}" ]; then
