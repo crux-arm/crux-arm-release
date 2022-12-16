@@ -7,7 +7,7 @@
 CRUX_ARM_VERSION = 3.7
 CRUX_ARM_GIT_PREFIX = https://github.com/crux-arm
 CRUX_GIT_PREFIX = git://crux.nu/ports
-CRUX_GIT_HASH = 2f90d87a2cc97cb07fc7d6226f5d9fce219bcc0f
+CRUX_GIT_HASH = 82133dc2ec67969ee99158b987ef17a4ac0eff39
 
 # This is the top dir where Makefile lives
 # We should use this with care, because it could harcode absolute paths in files
