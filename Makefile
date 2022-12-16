@@ -327,15 +327,21 @@ stage1:
 #------------------------------------------------------------------------------
 # BOOSTRAP
 #
+# This target is designed to run stage0 and stage1 in order from a fresh state.
+# If stage0 has already been launched previously, bootstrap can reuse it, in
+# which case a warning message will be displayed warning that stage0 will be
+# reused to complete the bootstrap.
 #
 .PHONY: bootstrap
 bootstrap:
 	@echo "[`date +'%F %T'`] Bootstrap started"
 	@echo "[`date +'%F %T'`] Running Stage 0"
 	$(MAKE) stage0 2>&1 | tee stage0.log
-	@grep -e 'failed\.' -e 'succeeded\.' stage0.log
+	@if ! grep -e 'failed\.' -e 'succeeded\.' stage0.log; then \
+		echo "WARNING: stage0 has already been done before." && \
+		echo "WARNING: stage0 will be reused to continue the bootstrap process."; fi
 	@echo "[`date +'%F %T'`] Selecting $(ROOTFS_TAR_FILE) -> $(ROOTFS_STAGE0_TAR_FILE)"
-	@ln -s $(ROOTFS_STAGE0_TAR_FILE) $(ROOTFS_TAR_FILE)
+	@ln -sf $(ROOTFS_STAGE0_TAR_FILE) $(ROOTFS_TAR_FILE)
 	@echo "[`date +'%F %T'`] Running Stage 1"
 	$(MAKE) stage1 2>&1 | tee stage1.log
 	@grep -e 'failed\.' -e 'succeeded\.' stage1.log
