@@ -3,7 +3,7 @@
 # This script helps to compare the versions of the overlay ports we have
 # against the upstream versions in the official CRUX's core repo
 
-# Order alphanum and extract two values from each line (port and version) 
+# Order alphanum and extract two values from each line (port and version)
 filter() {
   cat - | sort -u | \
   while read line; do
@@ -22,13 +22,13 @@ if [ ! -d ${PORTS_DIR} ]; then
   exit 1
 fi
 
-# Create a list for upstream core and each overaly collection
+# Create a list for upstream core and each overlay collection
 grep -H '^version=' ports/core/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/core.list
 for overlay in ${OVERLAY_COLLECTIONS}; do
   grep -H '^version=' ports/${overlay}/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/${overlay}.list
 done
 
-# Compare each collection against upstream core and show differences
+# Compare each collection against upstream core and show differences
 printf '%-20s %10s %30s\n' "PORT" "VERSION" "OVERLAY VERSION"
 while read port_name core_port_version; do
   for overlay in ${OVERLAY_COLLECTIONS}; do
