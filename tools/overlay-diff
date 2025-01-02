@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script helps to compare the versions of the overlay ports we have
 # against the upstream versions in the official CRUX's core repo

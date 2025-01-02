@@ -1,13 +1,39 @@
+# Makefile for CRUX-ARM Release
+# Automates the build and packaging process for CRUX-ARM root filesystems
 #
-# Description: Build CRUX-ARM releases
+# Copyright (C) 2025 CRUX-ARM System Team <devel AT crux-arm DOT nu>
 #
-# The first objective for this script is to generate a generic release (i.e: crux-arm-3.7.rootfs.tar.xz)
-# But also it will run from ARM compatible devices to generate optimized releases (i.e: crux-arm-3.7.rootfs.odroidxu4.tar.xz)
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# Usage:
+#   make bootstrap  - Run the full build process
+#   make stage0     - Build base packages (Stage 0)
+#   make stage1     - Build additional packages in chroot (Stage 1)
+#   make release    - Create final CRUX-ARM release package
+#
+# For more information, run:
+#   make help
 
-CRUX_ARM_VERSION = 3.7
+# Overlay ports from CRUX-ARM repositories
+CRUX_ARM_VERSION = 3.8
 CRUX_ARM_GIT_PREFIX = https://github.com/crux-arm
-CRUX_GIT_PREFIX = git://crux.nu/ports
-CRUX_GIT_HASH = 82133dc2ec67969ee99158b987ef17a4ac0eff39
+#CRUX_ARM_GIT_HASH =
+
+# Upstream ports from CRUX repositories
+CRUX_VERSION = 3.8
+CRUX_GIT_PREFIX = https://git.crux.nu/ports
+#CRUX_GIT_HASH = 90440d8a8a
 
 # This is the top dir where Makefile lives
 # We should use this with care, because it could harcode absolute paths in files
@@ -51,12 +77,19 @@ ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
 
 RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
 
+STAGE0_LOG_FILE = stage0.log
+STAGE1_LOG_FILE = stage1.log
+
 # Optimization based on devices
 ifndef DEVICE_OPTIMIZATION
-DEVICE_OPTIMIZATION = arm
+DEVICE_OPTIMIZATION = arm64
 endif
+
 # Load CFLAGS and COLLECTIONS for selected optimization
+ifneq ("$(wildcard $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk)", "")
 include $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk
+endif
+
 # Export variable to sub-make
 export DEVICE_OPTIMIZATION
 
@@ -88,6 +121,18 @@ help:
 	@echo '  DEVICE_OPTIMIZATION  Device for which we want to optimize the build'
 	@echo '                       e.g: make stage1 DEVICE_OPTIMIZATION=odroidxu4'
 
+.PHONY: clean
+clean: \
+	clean-pkgmkconf \
+	clean-prtgetconf \
+	clean-stage0-file \
+	clean-stage1-file
+
+.PHONY: distclean
+distclean: clean
+	rm -f $(ROOTFS_TAR_FILE) $(STAGE0_LOG_FILE) $(STAGE1_LOG_FILE)
+	rm -rf $(PORTS_DIR) $(ROOTFS_STAGE0_DIR) $(ROOTFS_STAGE1_DIR)
+
 .PHONY: check-root
 check-root:
 	@if [ "$(CURRENT_UID)" != "0" ]; then \
@@ -108,7 +153,7 @@ check-optimization:
 		found=0; \
 		for COLL in $(COLLECTIONS); do \
 			case $$COLL in \
-				core-arm64) found=1 ;; \
+				*-arm64) found=1 ;; \
 				*) found=0 ;; \
 			esac \
 		done; \
@@ -128,11 +173,25 @@ $(PORTS_DIR):
 		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
 			case $$COLL in \
 				core) \
-					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_GIT_PREFIX)/$$COLL $(PORTS_DIR)/$$COLL ; \
-					cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ;; \
+					git clone -v -b $(CRUX_VERSION) \
+						--single-branch $(CRUX_GIT_PREFIX)/$${COLL}.git $(PORTS_DIR)/$$COLL ; \
+					if [ -z $(CRUX_GIT_HASH) ]; then \
+						cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ; \
+					fi ;; \
+				core-arm64|core-arm) \
+					git clone -v -b $(CRUX_ARM_VERSION) \
+						--single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ; \
+					if [ -z $(CRUX_ARM_GIT_HASH) ]; then \
+						cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_ARM_GIT_HASH) ; \
+					fi ;; \
 				*-arm|*-arm64) \
-					git clone -b $(CRUX_ARM_VERSION) --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
-			esac \
+					git clone -v -b $(CRUX_ARM_VERSION) \
+						--single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
+			esac; \
+			if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
+				echo "ERROR: git clone failed"; \
+				exit 1; \
+			fi \
 		fi \
 	done
 
@@ -148,7 +207,7 @@ $(PKGMK_CONFIG_FILE):
 	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(PKGMK_CONFIG_FILE)
 
 .PHONY: clean-pkgmkconf
-clean-pkgmkconf: $(PKGMK_CONFIG_FILE)
+clean-pkgmkconf:
 	@rm -f $(PKGMK_CONFIG_FILE)
 
 # Generates prt-get.conf
@@ -161,11 +220,14 @@ $(PRTGET_CONFIG_FILE): $(PORTS_DIR)
 	@for COLL in $(COLLECTIONS); do \
 		echo "prtdir $(PORTS_DIR)/$$COLL" >> $(PRTGET_CONFIG_FILE); \
 	done
+	@echo "writelog enabled" >> $(PRTGET_CONFIG_FILE)
+	@echo "logmode overwrite" >> $(PRTGET_CONFIG_FILE)
 	@echo "rmlog_on_success no" >> $(PRTGET_CONFIG_FILE)
+	@echo "logfile %p/%n-%v-%r.prt-get.log" >> $(PRTGET_CONFIG_FILE)
 	@echo "runscripts yes" >> $(PRTGET_CONFIG_FILE)
 
 .PHONY: clean-prtgetconf
-clean-prtgetconf: $(PRTGET_CONFIG_FILE)
+clean-prtgetconf:
 	@rm -f $(PRTGET_CONFIG_FILE)
 
 # Generates ports.stage0 (list of ports required to create the stage0)
@@ -176,7 +238,7 @@ $(PORTS_STAGE0_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
 	@prt-get --config=$(PRTGET_CONFIG_FILE) quickdep $(PORTS_STAGE0) > $(PORTS_STAGE0_FILE)
 
 .PHONY: clean-stage0-file
-clean-stage0-file: $(PORTS_STAGE0_FILE)
+clean-stage0-file:
 	@rm -f $(PORTS_STAGE0_FILE)
 
 # Generates ports.stage1 (list of ports required to create the stage1)
@@ -192,7 +254,7 @@ $(PORTS_STAGE1_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
 	@rm -f $(PORTS_STAGE1_FILE).tmp
 
 .PHONY: clean-stage1-file
-clean-stage1-file: $(PORTS_STAGE1_FILE)
+clean-stage1-file:
 	@rm -f $(PORTS_STAGE1_FILE)
 
 # Build each port from PORTS_STAGE0_FILE.
@@ -336,15 +398,15 @@ stage1:
 bootstrap:
 	@echo "[`date +'%F %T'`] Bootstrap started"
 	@echo "[`date +'%F %T'`] Running Stage 0"
-	$(MAKE) stage0 2>&1 | tee stage0.log
-	@if ! grep -e 'failed\.' -e 'succeeded\.' stage0.log; then \
+	$(MAKE) stage0 2>&1 | tee $(STAGE0_LOG_FILE)
+	@if ! grep -e 'failed\.' -e 'succeeded\.' $(STAGE0_LOG_FILE); then \
 		echo "WARNING: stage0 has already been done before." && \
 		echo "WARNING: stage0 will be reused to continue the bootstrap process."; fi
 	@echo "[`date +'%F %T'`] Selecting $(ROOTFS_TAR_FILE) -> $(ROOTFS_STAGE0_TAR_FILE)"
 	@ln -sf $(ROOTFS_STAGE0_TAR_FILE) $(ROOTFS_TAR_FILE)
 	@echo "[`date +'%F %T'`] Running Stage 1"
-	$(MAKE) stage1 2>&1 | tee stage1.log
-	@grep -e 'failed\.' -e 'succeeded\.' stage1.log
+	$(MAKE) stage1 2>&1 | tee $(STAGE1_LOG_FILE)
+	@grep -e 'failed\.' -e 'succeeded\.' $(STAGE1_LOG_FILE)
 	@echo "[`date +'%F %T'`] Bootstrap completed"
 
 #------------------------------------------------------------------------------
