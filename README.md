@@ -182,7 +182,7 @@ This stage applies **device-specific optimizations** to the root filesystem. It 
     - At this point, the build contains generic packages with no optimizations for the target hardware.
 
 2. **Transfer to Target Device**: (Optional if built on host)
-    - If building on a host machine, the root filesystem is copied to the target device or booted on the target machine.
+    - If building on a host machine, the root filesystem is copied to the target device.
 
 3. **Built rootfs-stage1** on the target device, ensuring the system is **optimized for the device's hardware**.
     ```bash
