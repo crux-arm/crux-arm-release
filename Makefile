@@ -101,7 +101,9 @@ PKGMK_CMD = fakeroot pkgmk
 endif
 
 # Default pkgmk options
-PKGMK_CMD_OPTS = -is
+PKGMK_CMD_OPTS ?= -is
+# Append user defined options (e.g. -kw)
+PKGMK_CMD_OPTS += $(PKGMK_CMD_EXTRA_OPTS)
 # Force pkgmk to rebuilt packages
 ifeq ($(PKGMK_FORCE),yes)
 PKGMK_CMD_OPTS += -f
