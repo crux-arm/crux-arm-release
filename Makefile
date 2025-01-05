@@ -59,7 +59,7 @@ PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
 	patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
 # ports that will not take part in the release
-PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash
+PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash libcap
 
 PKGMK_CONFIG_FILE = $(WORKSPACE_DIR)/pkgmk.conf
 PKGMK_COMPRESSION_MODE = xz
@@ -77,8 +77,8 @@ ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
 
 RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
 
-STAGE0_LOG_FILE = stage0.log
-STAGE1_LOG_FILE = stage1.log
+STAGE0_LOG_FILE = $(WORKSPACE_DIR)/stage0.log
+STAGE1_LOG_FILE = $(WORKSPACE_DIR)/stage1.log
 
 # Optimization based on devices
 ifndef DEVICE_OPTIMIZATION
@@ -156,7 +156,7 @@ check-optimization:
 		for COLL in $(COLLECTIONS); do \
 			case $$COLL in \
 				*-arm64) found=1 ;; \
-				*) found=0 ;; \
+				*-arm) found=0 ;; \
 			esac \
 		done; \
 		if [ $$found -eq 1 ]; then \
