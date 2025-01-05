@@ -2,6 +2,9 @@
 
 # This script helps to compare the versions of the overlay ports we have
 # against the upstream versions in the official CRUX's core repo
+#
+# Additionally it can compare file differences by using an environment variable:
+# E.g. OUTPUT_CHANGES=1 tools/overlay-diff
 
 # Order alphanum and extract two values from each line (port and version)
 filter() {
@@ -13,9 +16,11 @@ filter() {
   done
 }
 
+ARCH=${ARCH:-arm64}
 TMP_DIR=$(mktemp -d)
 PORTS_DIR=${PORTS_DIR:-ports}
-OVERLAY_COLLECTIONS="core-arm core-arm64"
+OVERLAY_COLLECTIONS=${OVERLAY_COLLECTIONS:-core-$ARCH}
+OUTPUT_CHANGES=${OUTPUT_CHANGES:-0}
 
 if [ ! -d ${PORTS_DIR} ]; then
   echo "ERROR, ports directory can't be found at '$PORTS_DIR'"
@@ -25,21 +30,42 @@ fi
 # Create a list for upstream core and each overlay collection
 grep -H '^version=' ports/core/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/core.list
 for overlay in ${OVERLAY_COLLECTIONS}; do
-  grep -H '^version=' ports/${overlay}/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/${overlay}.list
+  if [ -d ${PORTS_DIR}/${overlay} ]; then
+    grep -H '^version=' ports/${overlay}/*/Pkgfile 2>/dev/null | filter > ${TMP_DIR}/${overlay}.list
+  else
+    echo "ERROR, overlay ${overlay} not found"
+    exit 1
+  fi
 done
 
 # Compare each collection against upstream core and show differences
-printf '%-20s %10s %30s\n' "PORT" "VERSION" "OVERLAY VERSION"
 while read port_name core_port_version; do
   for overlay in ${OVERLAY_COLLECTIONS}; do
     if grep "^${port_name} " ${TMP_DIR}/${overlay}.list > ${TMP_DIR}/${overlay}.match; then
       overlay_port_version=$(cut -d' ' -f2 ${TMP_DIR}/${overlay}.match)
       #echo "DEBUG::: ${core_port_version} vs ${overlay_port_version}"
       if [ "${core_port_version}" != "${overlay_port_version}" ]; then
-        printf '%-20s %10s %30s\n' "${port_name}" "${core_port_version}" "${overlay_port_version} (${overlay})"
+        printf '%-20s %-10s %s\n' "${port_name}" "${core_port_version}" "${overlay_port_version} (${overlay})" >> ${TMP_DIR}/output
+      fi
+      if [ $OUTPUT_CHANGES -eq 1 ]; then
+        printf "${port_name}\n-----------------\n" >> ${TMP_DIR}/output-changes
+        diff -r --color=always ${PORTS_DIR}/core/${port_name} ${PORTS_DIR}/${overlay}/${port_name} \
+          -x '.*' -x '*.pkg.*' -x '*.tar.*' >> ${TMP_DIR}/output-changes
+        echo >> ${TMP_DIR}/output-changes
       fi
     fi
   done
 done < ${TMP_DIR}/core.list
+
+if [ -f "${TMP_DIR}/output" ]; then
+  printf "\nDifferences between versions in upstream ports and overlay collections:\n"
+  printf '\n%-20s %-10s %s\n\n' "Port" "Upstream" "Overlay"
+  cat ${TMP_DIR}/output
+elif [ -f "${TMP_DIR}/output-changes" ]; then
+  printf "\nDifferences between files in upstream ports and overlay collections:\n\n"
+  cat ${TMP_DIR}/output-changes
+else
+  echo "No differences found"
+fi
 
 rm -rf ${TMP_DIR}
