@@ -60,7 +60,7 @@ To build the CRUX-ARM release, there are two approaches: Native and Dockerized.
     tools/dockerize.sh bootstrap
   ```
 - Note tha to run an `arm64` (or `armhf`) container from a different architecture host (e.g. `x86_64`), you must enable multi-architecture support using QEMU.
-  Ensure that Docker and QEMU are installed, then run:
+  Ensure that Docker is installed, then run:
     ```bash
     docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     ```
