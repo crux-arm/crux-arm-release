@@ -53,24 +53,25 @@ To build the CRUX-ARM release, there are two approaches: Native and Dockerized.
 - Preferably requires a CRUX-ARM Linux system for the variant of the release you want to build (`arm64` or `arm`).
 - Alternatively, you can use Arch or Debian for ARM (or similar distributions). In this case, ensure that the basic tools `make`, `gcc`, `git`, `xz`, and necessary development headers and libraries are installed.
 
-### Dockerized (and non-Native)
+### Dockerized
 - You can build the CRUX-ARM release on CRUX Linux for `x86_64` or even on other Linux distributions or macOS capable of running multi-arch Docker containers.
 - The `tools/dockerize.sh` script will handle the process inside a Docker container, abstracting the need for a native ARM environment. For example, to run the bootstrap it would be something like:
     ```bash
     tools/dockerize.sh bootstrap
   ```
-- Note tha to run an `arm64` (or `armhf`) container from a different architecture host (e.g. `x86_64`), you must enable multi-architecture support using QEMU.
+- Note that to run an `arm64` or `armhf` container from a different architecture host (e.g. `x86_64`), you must enable multi-architecture support using QEMU.
   Ensure that Docker is installed, then run:
     ```bash
     docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     ```
-    This command registers QEMU to handle non-native architectures. After that, you can run an `arm64` (or `armhf`) container like this to verify that everything is working fine:
+    This command registers QEMU to handle non-native architectures. After that, you can run an `arm64` or `armhf` container like this to verify that everything is working fine:
     ```bash
-    # on arm64
+    # on arm64 this will output: aarch64
     docker run --rm --platform linux/arm64 -t sepen/crux:arm64 bash -c "uname -m"
-    # on armhf
-    #docker run --rm --platform linux/arm/v7 -t sepen/crux:armhf bash -c "uname -m"
+    # on armhf this will output: armv7 or variants (e.g. armv7l)
+    docker run --rm --platform linux/arm/v7 -t sepen/crux:armhf bash -c "uname -m"
     ```
+  > WARNING: Launching containers on macOS may have issues when compiling ports on mounted host volumes. This is because the filesystem used by macOS by default is not case-sensitive. For more information, read the comments inside the [tools/dockerize.sh](tools/dockerize.sh) file.
 
 For both approaches, ensure your system has internet access to the upstream CRUX repositories for both core and ARM-specific ports.
 
@@ -90,7 +91,7 @@ git checkout <branch> # e.g. 3.8
 ```
 
 ### Set Up Environment
-Depending on your target architecture, you can specify the device optimization during the build by setting the OPTIMIZED_DEVICE variable. By default, this is set to arm64.
+Depending on your target architecture, you can specify the device optimization during the build by setting the **OPTIMIZED_DEVICE** variable. By default, this is set to **arm64**.
 
 ### Bootstrap Process
 Run the Makefile to start the bootstrap process:
@@ -103,7 +104,7 @@ This will trigger the following Makefile targets:
 
 1. **`stage0`**: It will build the necessary base packages from upstream CRUX and ARM repositories for the selected architecture.
 2. **`stage1`**: After **Stage 0** completes, the system will automatically enter a chroot environment where additional packages will be compiled.
-3. **`release`**: The final root filesystem will be packaged as `crux-arm-VERSION.rootfs.tar.xz`, where VERSION will be replaced by the version of the release.
+3. **`release`**: The final root filesystem will be packaged as `crux-arm-VERSION.rootfs.tar.xz`, where VERSION will be replaced by the version of the release and the device optimization (e.g. 3.7-arm64).
 
 You can run `make bootstrap` to trigger the entire process or alternatively you can run individual stages by using:
 ```
@@ -140,6 +141,7 @@ The following directories are involved in the build process:
 - **`work`**: Contains temporary files and pkgmk's work directory.
 - **`rootfs-stage0`**: Contains the initial bootstrap environment and packages from **Stage 0**.
 - **`rootfs-stage1`**: Contains the packages and configurations created during **Stage 1**.
+- **`tools`**: Directory with some useful scripts.
 
 Both `rootfs-stage0` and `rootfs-stage1` are created during the build process (usually executed via make). These stages are progressively populated with files and utilities to prepare the root filesystem.
 
@@ -153,7 +155,7 @@ This stage contains a **generic and unoptimized** root filesystem. The goal is t
 
 #### Key Characteristics:
 - Packages are installed **without architecture or device-specific optimizations**.
-- **Generic** compiler flags (e.g., `-O2 -pipe`) are used to ensure portability across different systems.
+- **Generic** compiler flags are used to ensure portability across different variants for the same architecture.
 - Contains the **minimum set of packages** like `gcc`, `glibc`, `binutils`, etc. and basic libraries.
 - The focus is on getting a **basic root filesystem** up and running, not on optimizing for performance or power efficiency.
 
@@ -180,21 +182,25 @@ This stage applies **device-specific optimizations** to the root filesystem. It 
 
 1. **Built rootfs-stage0** on a development machine (or a neutral environment).
     ```bash
-    make rootfs-stage0
+    make stage0
     ```
-    - At this point, the build contains generic packages with no optimizations for the target hardware.
+
+    At this point, the build contains generic packages with no optimizations for the target hardware.
 
 2. **Transfer to Target Device**: (Optional if built on host)
-    - If building on a host machine, the root filesystem is copied to the target device.
+
+    If building on a host machine, the root filesystem is copied to the target device.
 
 3. **Built rootfs-stage1** on the target device, ensuring the system is **optimized for the device's hardware**.
     ```bash
-    make rootfs-stage1
+    make stage1
     ```
-    - This stage compiles the packages with architecture-specific flags and optimizations, making the system more efficient for the target device.
+
+    This stage compiles the packages with architecture-specific flags and optimizations, making the system more efficient for the target device.
 
 4. **Finalize the Build** (Optional further stages):
-    - You may proceed with additional stages (like `release`) to complete the root filesystem.
+
+    You may proceed with additional stages (like `release`) to complete the root filesystem.
     ```bash
     make release
     ```
