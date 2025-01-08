@@ -135,6 +135,9 @@ The following directories are involved in the build process:
 
 - **`devices`**: Contains configuration and optimization files for various supported ARM devices.
 - **`ports`**: Stores a clone of the upstream CRUX core ports and additional overlays for specific ARM architectures (e.g., core-arm64, core-armhf) and device-specific optimizations (e.g., raspberrypi4-arm64).
+- **`packages`**: Directory where the different built packages will be stored.
+- **`sources`**:: Contains sources used in ports to build packages.
+- **`work`**: Contains temporary files and pkgmk's work directory.
 - **`rootfs-stage0`**: Contains the initial bootstrap environment and packages from **Stage 0**.
 - **`rootfs-stage1`**: Contains the packages and configurations created during **Stage 1**.
 
