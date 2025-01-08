@@ -32,15 +32,12 @@ case "${HOST_OS}" in
     #  Docker-Desktop v4.37.1 (178610) didn't work and reported a 'mount read-only' issue
     #  Docker-Desktop v4.34.3 (170107) has been tested and worked without problems
     echo "Darwin macOS detected. Checking for mounting volume in ${BASE_DIR}/work"
-    df "${BASE_DIR}/work" > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-      echo "Mounting a case-sensitive volume to ${BASE_DIR}/work"
-      mkdir -p "${BASE_DIR}/work"
-      if [ ! -f "${BASE_DIR}/work.dmg.sparseimage" ]; then
-        hdiutil create -type SPARSE -fs "Case-sensitive APFS" -size 10g -volname "crux-arm-release-work" "${BASE_DIR}/work.dmg"
-      fi
-      hdiutil attach "${BASE_DIR}/work.dmg.sparseimage" -mountpoint "${BASE_DIR}/work" || exit 1
+    echo "Mounting a case-sensitive volume to ${BASE_DIR}/work"
+    mkdir -p "${BASE_DIR}/work"
+    if [ ! -f "${BASE_DIR}/work.dmg.sparseimage" ]; then
+      hdiutil create -type SPARSE -fs "Case-sensitive APFS" -size 10g -volname "crux-arm-release-work" "${BASE_DIR}/work.dmg"
     fi
+    hdiutil attach "${BASE_DIR}/work.dmg.sparseimage" -mountpoint "${BASE_DIR}/work" || exit 1
     ;;
 esac
 
