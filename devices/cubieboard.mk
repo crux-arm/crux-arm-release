@@ -1,3 +1,2 @@
-CFLAGS=-O2 -pipe -mfloat-abi=hard -mfpu=neon -mcpu=cortex-a8 -mtune=cortex-a8
+CFLAGS = -O2 -pipe -mcpu=cortex-a8 -mtune=cortex-a8 -mfloat-abi=hard -mfpu=neon
 COLLECTIONS = cubieboard-arm core-arm core
-RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION)-cubieboard.rootfs.tar.xz
