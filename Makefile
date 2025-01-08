@@ -35,6 +35,9 @@ CRUX_VERSION = 3.8
 CRUX_GIT_PREFIX = https://git.crux.nu/ports
 #CRUX_GIT_HASH = 90440d8a8a
 
+CURRENT_UID := $(shell id -u)
+CURRENT_GID := $(shell id -g)
+
 # This is the top dir where Makefile lives
 # We should use this with care, because it could harcode absolute paths in files
 # An example of this hardcode may appear for each prtdir in prt-get.conf
@@ -42,16 +45,14 @@ ifndef WORKSPACE_DIR
 WORKSPACE_DIR = $(realpath $(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
 endif
 
-CURRENT_UID := $(shell id -u)
-CURRENT_GID := $(shell id -g)
-
 PORTS_DIR = $(WORKSPACE_DIR)/ports
+WORK_DIR = $(WORKSPACE_DIR)/work
 
-PORTS_STAGE0_FILE = $(WORKSPACE_DIR)/ports.stage0
-PORTS_STAGE1_FILE = $(WORKSPACE_DIR)/ports.stage1
+PORTS_STAGE0_FILE = $(WORK_DIR)/ports.stage0
+PORTS_STAGE1_FILE = $(WORK_DIR)/ports.stage1
 
 # This file exists to make possible continue building stage1 ports from a selected point
-PORTS_STAGE1_PENDING_FILE = $(WORKSPACE_DIR)/pending.stage1
+PORTS_STAGE1_PENDING_FILE = $(WORK_DIR)/pending.stage1
 
 # stage0 ports are the minimal base for creating a chroot where continue building ports
 PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
@@ -61,24 +62,24 @@ PORTS_STAGE0 = automake attr bash binutils bison coreutils dash diffutils file \
 # ports that will not take part in the release
 PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash libcap
 
-PKGMK_CONFIG_FILE = $(WORKSPACE_DIR)/pkgmk.conf
+PKGMK_CONFIG_FILE = $(WORK_DIR)/pkgmk.conf
 PKGMK_COMPRESSION_MODE = xz
-PRTGET_CONFIG_FILE = $(WORKSPACE_DIR)/prt-get.conf
+PRTGET_CONFIG_FILE = $(WORK_DIR)/prt-get.conf
 
-PACKAGES_STAGE0_TAR_FILE = $(WORKSPACE_DIR)/packages.stage0.tar.xz
-PACKAGES_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/packages.stage1.tar.xz
+PACKAGES_STAGE0_TAR_FILE = $(WORK_DIR)/packages.stage0.tar.xz
+PACKAGES_STAGE1_TAR_FILE = $(WORK_DIR)/packages.stage1.tar.xz
 
 ROOTFS_STAGE0_DIR = $(WORKSPACE_DIR)/rootfs-stage0
 ROOTFS_STAGE1_DIR = $(WORKSPACE_DIR)/rootfs-stage1
 
 ROOTFS_TAR_FILE = $(WORKSPACE_DIR)/rootfs.tar.xz
-ROOTFS_STAGE0_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage0.tar.xz
-ROOTFS_STAGE1_TAR_FILE = $(WORKSPACE_DIR)/rootfs.stage1.tar.xz
+ROOTFS_STAGE0_TAR_FILE = $(WORK_DIR)/rootfs.stage0.tar.xz
+ROOTFS_STAGE1_TAR_FILE = $(WORK_DIR)/rootfs.stage1.tar.xz
 
-RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION).rootfs.tar.xz
+RELEASE_TAR_FILE = crux-arm-$(CRUX_ARM_VERSION)-$(DEVICE_OPTIMIZATION).rootfs.tar.xz
 
-STAGE0_LOG_FILE = $(WORKSPACE_DIR)/stage0.log
-STAGE1_LOG_FILE = $(WORKSPACE_DIR)/stage1.log
+STAGE0_LOG_FILE = $(WORK_DIR)/stage0.log
+STAGE1_LOG_FILE = $(WORK_DIR)/stage1.log
 
 # Optimization based on devices
 ifndef DEVICE_OPTIMIZATION
@@ -93,13 +94,13 @@ endif
 # Export variable to sub-make
 export DEVICE_OPTIMIZATION
 
-# Default build command
+# Default build commands
 PKGMK_CMD = pkgmk
+PRTGET_CMD = prt-get
 # Use fakeroot command to build packages
 ifeq ($(PKGMK_FAKEROOT),yes)
 PKGMK_CMD = fakeroot pkgmk
 endif
-
 # Default pkgmk options
 PKGMK_CMD_OPTS ?= -is
 # Append user defined options (e.g. -kw)
@@ -108,6 +109,10 @@ PKGMK_CMD_OPTS += $(PKGMK_CMD_EXTRA_OPTS)
 ifeq ($(PKGMK_FORCE),yes)
 PKGMK_CMD_OPTS += -f
 endif
+# Custom directories to keep everything clean
+PKGMK_SOURCE_DIR  ?= $(WORKSPACE_DIR)/sources
+PKGMK_PACKAGE_DIR ?= $(WORKSPACE_DIR)/packages
+PKGMK_WORK_DIR    ?= $(WORK_DIR)/pkgmk-work
 
 .PHONY: help
 help:
@@ -121,7 +126,7 @@ help:
 	@echo 'Additional variables to all targets:'
 	@echo
 	@echo '  DEVICE_OPTIMIZATION  Device for which we want to optimize the build'
-	@echo '                       e.g: make stage1 DEVICE_OPTIMIZATION=odroidxu4'
+	@echo '                       e.g: make bootstrap DEVICE_OPTIMIZATION=odroidxu4'
 
 .PHONY: clean
 clean: \
@@ -147,22 +152,6 @@ check-is-chroot: check-root
 	@if [ ! -d /workspace ]; then \
 		echo "You are not inside chroot environment."; \
 		exit 1; \
-	fi
-
-.PHONY: check-optimization
-check-optimization:
-	@if [ "$(shell uname -m)" != "aarch64" ]; then \
-		found=0; \
-		for COLL in $(COLLECTIONS); do \
-			case $$COLL in \
-				*-arm64) found=1 ;; \
-				*-arm) found=0 ;; \
-			esac \
-		done; \
-		if [ $$found -eq 1 ]; then \
-			echo "Your host is not able to build an optimization for $(DEVICE_OPTIMIZATION)"; \
-			exit 1; \
-		fi \
 	fi
 
 # Clones all COLLECTIONS of ports required to generate the release
@@ -207,6 +196,9 @@ $(PKGMK_CONFIG_FILE):
 	@echo 'PKGMK_COMPRESSION_MODE="$(PKGMK_COMPRESSION_MODE)"' >> $(PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_DOWNLOAD_PROG="curl"' >> $(PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_SOURCE_DIR="$(PKGMK_SOURCE_DIR)"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_PACKAGE_DIR="$(PKGMK_PACKAGE_DIR)"' >> $(PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_WORK_DIR="$(PKGMK_WORK_DIR)/$$name"' >> $(PKGMK_CONFIG_FILE)
 
 .PHONY: clean-pkgmkconf
 clean-pkgmkconf:
@@ -225,7 +217,7 @@ $(PRTGET_CONFIG_FILE): $(PORTS_DIR)
 	@echo "writelog enabled" >> $(PRTGET_CONFIG_FILE)
 	@echo "logmode overwrite" >> $(PRTGET_CONFIG_FILE)
 	@echo "rmlog_on_success no" >> $(PRTGET_CONFIG_FILE)
-	@echo "logfile %p/%n-%v-%r.prt-get.log" >> $(PRTGET_CONFIG_FILE)
+	@echo "logfile %n-%v-%r.prt-get.log" >> $(PRTGET_CONFIG_FILE)
 	@echo "runscripts yes" >> $(PRTGET_CONFIG_FILE)
 
 .PHONY: clean-prtgetconf
@@ -237,7 +229,7 @@ clean-prtgetconf:
 prepare-stage0-file: $(PORTS_STAGE0_FILE)
 $(PORTS_STAGE0_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
 	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE0_FILE)"
-	@prt-get --config=$(PRTGET_CONFIG_FILE) quickdep $(PORTS_STAGE0) > $(PORTS_STAGE0_FILE)
+	@$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) quickdep $(PORTS_STAGE0) > $(PORTS_STAGE0_FILE)
 
 .PHONY: clean-stage0-file
 clean-stage0-file:
@@ -248,11 +240,11 @@ clean-stage0-file:
 prepare-stage1-file: $(PORTS_STAGE1_FILE)
 $(PORTS_STAGE1_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
 	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE1_FILE)"
-	@prt-get --config=$(PRTGET_CONFIG_FILE) list > $(PORTS_STAGE1_FILE).tmp
+	@$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) list > $(PORTS_STAGE1_FILE).tmp
 	@for bl in $(PORTS_BLACKLIST); do \
 		sed "/^$$bl/d" -i $(PORTS_STAGE1_FILE).tmp; \
 	done
-	@prt-get --config=$(PRTGET_CONFIG_FILE) quickdep `cat $(PORTS_STAGE1_FILE).tmp | tr '\n' ' '` > $(PORTS_STAGE1_FILE)
+	@$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) quickdep `cat $(PORTS_STAGE1_FILE).tmp | tr '\n' ' '` > $(PORTS_STAGE1_FILE)
 	@rm -f $(PORTS_STAGE1_FILE).tmp
 
 .PHONY: clean-stage1-file
@@ -262,11 +254,11 @@ clean-stage1-file:
 # Build each port from PORTS_STAGE0_FILE.
 # When all have been generated correctly, a tar.xz file is built with all the packages for backup purposes.
 .PHONY: build-stage0-packages
-build-stage0-packages: check-optimization $(PACKAGES_STAGE0_TAR_FILE)
+build-stage0-packages: $(PACKAGES_STAGE0_TAR_FILE)
 $(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE0_FILE)
 	@echo "[`date +'%F %T'`] Building stage0 packages from $(PORTS_STAGE0_FILE)"
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
@@ -282,7 +274,7 @@ $(ROOTFS_STAGE0_TAR_FILE): $(PACKAGES_STAGE0_TAR_FILE) $(PRTGET_CONFIG_FILE) $(P
 	@sudo mkdir -p $(ROOTFS_STAGE0_DIR)/var/lib/pkg
 	@sudo touch $(ROOTFS_STAGE0_DIR)/var/lib/pkg/db
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		package=`find $$portdir -type f -name "$$PORT#*.$(PKGMK_COMPRESSION_MODE)"`; \
 		echo "[`date +'%F %T'`] - package: $$package"; \
 		sudo pkgadd -r $(ROOTFS_STAGE0_DIR) $$package || exit 1; \
@@ -325,7 +317,7 @@ $(ROOTFS_STAGE1_DIR): $(ROOTFS_TAR_FILE) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FI
 download-stage1-sources: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
 	@echo "[`date +'%F %T'`] Downloading port sources"
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] - port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -do -cf $(PKGMK_CONFIG_FILE)) || exit 1; \
 	done
@@ -341,10 +333,10 @@ $(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_F
 	@test -f $(PORTS_STAGE1_PENDING_FILE) || cp $(PORTS_STAGE1_FILE) $(PORTS_STAGE1_PENDING_FILE)
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep ^$$PORT$$ || continue; \
-		portdir=`prt-get --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
-		prt-get --config=$(PRTGET_CONFIG_FILE) install $$PORT || prt-get --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
+		$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) install $$PORT || $(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) update $$PORT; \
 		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep -v ^$$PORT$$ | tr '\n' ' ' > $(PORTS_STAGE1_PENDING_FILE).tmp && \
 			mv $(PORTS_STAGE1_PENDING_FILE).tmp  $(PORTS_STAGE1_PENDING_FILE); \
 	done
