@@ -157,8 +157,8 @@ check-is-chroot: check-root
 # Clones all COLLECTIONS of ports required to generate the release
 # Upstream ports from CRUX's core is frozen to a certain version: $(CRUX_GIT_HASH)
 .PHONY: prepare-ports-dir
-prepare-ports-dir: $(PORTS_DIR)
-$(PORTS_DIR):
+prepare-ports-dir: $(PORTS_DIR)/core
+$(PORTS_DIR)/core%:
 	@echo "[`date +'%F %T'`] Getting sources for ports"
 	@for COLL in $(COLLECTIONS); do \
 		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
@@ -209,7 +209,7 @@ clean-pkgmkconf:
 # this file once it is called from within the chroot on stage1.
 .PHONY: prepare-prtgetconf
 prepare-prtgetconf: $(PRTGET_CONFIG_FILE)
-$(PRTGET_CONFIG_FILE): $(PORTS_DIR)
+$(PRTGET_CONFIG_FILE): $(PORTS_DIR)/core
 	@:> $(PRTGET_CONFIG_FILE)
 	@for COLL in $(COLLECTIONS); do \
 		echo "prtdir $(PORTS_DIR)/$$COLL" >> $(PRTGET_CONFIG_FILE); \
@@ -227,7 +227,7 @@ clean-prtgetconf:
 # Generates ports.stage0 (list of ports required to create the stage0)
 .PHONY: prepare-stage0-file
 prepare-stage0-file: $(PORTS_STAGE0_FILE)
-$(PORTS_STAGE0_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
+$(PORTS_STAGE0_FILE): $(PORTS_DIR)/core $(PRTGET_CONFIG_FILE)
 	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE0_FILE)"
 	@$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) quickdep $(PORTS_STAGE0) > $(PORTS_STAGE0_FILE)
 
@@ -238,7 +238,7 @@ clean-stage0-file:
 # Generates ports.stage1 (list of ports required to create the stage1)
 .PHONY: prepare-stage1-file
 prepare-stage1-file: $(PORTS_STAGE1_FILE)
-$(PORTS_STAGE1_FILE): $(PORTS_DIR) $(PRTGET_CONFIG_FILE)
+$(PORTS_STAGE1_FILE): $(PORTS_DIR)/core $(PRTGET_CONFIG_FILE)
 	@echo "[`date +'%F %T'`] Preparing $(PORTS_STAGE1_FILE)"
 	@$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) list > $(PORTS_STAGE1_FILE).tmp
 	@for bl in $(PORTS_BLACKLIST); do \
@@ -255,7 +255,7 @@ clean-stage1-file:
 # When all have been generated correctly, a tar.xz file is built with all the packages for backup purposes.
 .PHONY: build-stage0-packages
 build-stage0-packages: $(PACKAGES_STAGE0_TAR_FILE)
-$(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE0_FILE)
+$(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR)/core $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE0_FILE)
 	@echo "[`date +'%F %T'`] Building stage0 packages from $(PORTS_STAGE0_FILE)"
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
@@ -329,7 +329,7 @@ download-stage1-sources: $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAG
 # and could be a serious problem if run outside of the jail.
 .PHONY: build-stage1-packages
 build-stage1-packages: check-is-chroot check-optimization $(PACKAGES_STAGE1_TAR_FILE)
-$(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR) $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
+$(PACKAGES_STAGE1_TAR_FILE): $(PORTS_DIR)/core $(PKGMK_CONFIG_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE1_FILE)
 	@test -f $(PORTS_STAGE1_PENDING_FILE) || cp $(PORTS_STAGE1_FILE) $(PORTS_STAGE1_PENDING_FILE)
 	@for PORT in `cat $(PORTS_STAGE1_FILE)`; do \
 		sed 's| |\n|g' $(PORTS_STAGE1_PENDING_FILE) | grep ^$$PORT$$ || continue; \
