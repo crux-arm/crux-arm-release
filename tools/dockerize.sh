@@ -4,10 +4,14 @@
 # E.g. tools/dockerize.sh stage0 DEVICE_OPTIMIZATION=arm64
 #
 
-
-# Get make command and params
+# Get make command
 MAKE_PARAMS="help"
-[ $# -ge 1 ] && MAKE_PARAMS="$*"
+if [ $# -ge 1 ]; then
+  # all arguments as a single string
+  MAKE_PARAMS="$*"
+  # all arguments preserving their structure
+  INPUT_ARGS="$@"
+fi
 
 # Device optimizations (see: README.md)
 DEVICE_OPTIMIZATION=${DEVICE_OPTIMIZATION:-arm64}
@@ -38,6 +42,16 @@ case "${HOST_OS}" in
       hdiutil create -type SPARSE -fs "Case-sensitive APFS" -size 10g -volname "crux-arm-release-work" "${BASE_DIR}/work.dmg"
     fi
     hdiutil attach "${BASE_DIR}/work.dmg.sparseimage" -mountpoint "${BASE_DIR}/work" || exit 1
+    echo
+    echo "--------------------------------------------------------------------"
+    echo " IMPORTANT"
+    echo
+    echo " A volume has been mounted in:"
+    echo "   ${BASE_DIR}/work"
+    echo " Remember to unmount it manually when you are done working with it"
+    echo "--------------------------------------------------------------------"
+    echo
+    sleep 2
     ;;
 esac
 
@@ -51,15 +65,30 @@ DOCKER_PLATFORM=${DOCKER_PLATFORM:-linux/arm64}
 # Run the docker command and bind some directories
 # Avoid the whole directory tree of this project to ${WORKSPACE_DIR} since
 # this will end up with "too many open files" when managing large docker volumes
-docker run --init --rm \
-    --platform "${DOCKER_PLATFORM}" \
-    -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
-    -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
-    -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
-    -v "${BASE_DIR}/sources":${WORKSPACE_DIR}/sources \
-    -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
-    -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
-    "${DOCKER_IMAGE}" bash -x -c "
+case "$1" in
+  "debug"|"shell")
+    docker run --init -it --rm \
+      --platform "${DOCKER_PLATFORM}" \
+      -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
+      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
+      -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
+      -v "${BASE_DIR}/sources":${WORKSPACE_DIR}/sources \
+      -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
+      -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
+      "${DOCKER_IMAGE}" bash
+      ;;
+  *)
+    docker run --init --rm \
+      --platform "${DOCKER_PLATFORM}" \
+      -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
+      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
+      -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
+      -v "${BASE_DIR}/sources":${WORKSPACE_DIR}/sources \
+      -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
+      -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
+      "${DOCKER_IMAGE}" bash -x -c "
 cd ${WORKSPACE_DIR}
 make V=1 ${MAKE_PARAMS} DEVICE_OPTIMIZATION=${DEVICE_OPTIMIZATION}
 "
+      ;;
+esac
