@@ -268,20 +268,23 @@ $(PACKAGES_STAGE0_TAR_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH
 		echo "[`date +'%F %T'`] Building port: $$portdir" ; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
-	@echo "[`date +'%F %T'`] Creating $(PACKAGES_STAGE0_TAR_FILE)"
-	@tar caf $(PACKAGES_STAGE0_TAR_FILE) `find ports -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
+	@echo "[`date +'%F %T'`] Creating backup of stage0 packages: $(PACKAGES_STAGE0_TAR_FILE)"
+	@tar caf $(PACKAGES_STAGE0_TAR_FILE) `find $(PKGMK_PACKAGE_DIR) -type f -name "*.pkg.tar.$(PKGMK_COMPRESSION_MODE)"`
 
 # Create a rootfs with stage0 packages
 .PHONY: build-stage0-rootfs
 build-stage0-rootfs: $(ROOTFS_STAGE0_TAR_FILE)
 $(ROOTFS_STAGE0_TAR_FILE): $(PACKAGES_STAGE0_TAR_FILE) $(PRTGET_CONFIG_FILE) $(PORTS_STAGE0_FILE)
-	@echo "[`date +'%F %T'`] Creating rootfs from stage0 packages in $(ROOTFS_STAGE0_DIR)"
+	@echo "[`date +'%F %T'`] Creating rootfs from stage0 packages: $(ROOTFS_STAGE0_DIR)"
 	@sudo mkdir $(ROOTFS_STAGE0_DIR) || exit 1
 	@sudo mkdir -p $(ROOTFS_STAGE0_DIR)/var/lib/pkg
 	@sudo touch $(ROOTFS_STAGE0_DIR)/var/lib/pkg/db
 	@for PORT in `cat $(PORTS_STAGE0_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		package=`find $$portdir -type f -name "$$PORT#*.$(PKGMK_COMPRESSION_MODE)"`; \
+		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
+		package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
+		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
+		package="$(PKGMK_PACKAGE_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
 		echo "[`date +'%F %T'`] - package: $$package"; \
 		sudo pkgadd -r $(ROOTFS_STAGE0_DIR) $$package || exit 1; \
 	done
