@@ -1,5 +1,6 @@
 # This is a generic optimization for arm64
 # For 64-bit based devices, targeting ARMv8 architecture
+CRUX_ARM_ARCH = arm64
 
 # Generic compiler options for arm64 (aarch64-unknown-linux-gnu)
 #

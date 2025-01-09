@@ -1,6 +1,7 @@
 # This is a generic optimization for armhf
 # For 32-bit based devices, using the hard-float version
 # of the "new" ABI (EABI), targeting ARMv7 and up
+CRUX_ARM_ARCH = arm
 
 # Generic compiler flags for armhf (arm-unknown-linux-gnueabihf)
 #
