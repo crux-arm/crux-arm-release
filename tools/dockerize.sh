@@ -87,6 +87,7 @@ case "$1" in
       -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
       -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
       "${DOCKER_IMAGE}" bash -x -c "
+echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel
 cd ${WORKSPACE_DIR}
 make V=1 ${MAKE_PARAMS} DEVICE_OPTIMIZATION=${DEVICE_OPTIMIZATION}
 "
