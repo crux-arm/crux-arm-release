@@ -2,6 +2,8 @@
 
 This project aims to create custom CRUX-ARM releases for specific ARM architectures. The release creation process is automated using a Makefile to build the necessary packages and generate a root filesystem for ARM-based devices.
 
+> *** WORK IN PROGRESS ***\
+> We are currently developing version 3.8 so this document may be temporarily out of  date.
 
 ## Index
 
