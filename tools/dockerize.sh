@@ -24,34 +24,11 @@ BASE_DIR=$(cd "${TOOLS_DIR}"/../ && pwd)
 HOST_OS=$(uname -s)
 case "${HOST_OS}" in
   "Darwin")
-    # Problem:
-    #   macOS uses a case-insensitive filesystem (APFS or HFS+), which can cause
-    #   issues when bind mounting directories into Docker containers.
-    # Fix:
-    # - Create a Case-Sensitive APFS Disk Container:
-    #   hdiutil create -type SPARSE -fs "Case-sensitive APFS" -size 10g -volname MyDisk mydisk.dmg
-    # - Mount the Disk Container:
-    #   hdiutil attach mydisk.dmg -mountpoint work/
-    # Important Note:
-    #  Docker-Desktop v4.37.1 (178610) didn't work and reported a 'mount read-only' issue
-    #  Docker-Desktop v4.34.3 (170107) has been tested and worked without problems
-    echo "Darwin macOS detected. Checking for mounting volume in ${BASE_DIR}/work"
-    echo "Mounting a case-sensitive volume to ${BASE_DIR}/work"
-    mkdir -p "${BASE_DIR}/work"
-    if [ ! -f "${BASE_DIR}/work.dmg.sparseimage" ]; then
-      hdiutil create -type SPARSE -fs "Case-sensitive APFS" -size 10g -volname "crux-arm-release-work" "${BASE_DIR}/work.dmg"
-    fi
-    hdiutil attach "${BASE_DIR}/work.dmg.sparseimage" -mountpoint "${BASE_DIR}/work" || exit 1
-    echo
-    echo "--------------------------------------------------------------------"
-    echo " IMPORTANT"
-    echo
-    echo " A volume has been mounted in:"
-    echo "   ${BASE_DIR}/work"
-    echo " Remember to unmount it manually when you are done working with it"
-    echo "--------------------------------------------------------------------"
-    echo
-    sleep 2
+    # macOS uses uses a case-insensitive filesystem which can cause issues when bind
+    # mounting directories into containers, for example with 'mknod' commands
+    # We should use a directory from the container not being mounted
+    STAGE0_PKGMK_WORK_DIR="/var/lib/pkg/work"
+    STAGE1_PKGMK_WORK_DIR="/var/lib/pkg/work"
     ;;
 esac
 
@@ -67,29 +44,35 @@ DOCKER_PLATFORM=${DOCKER_PLATFORM:-linux/arm64}
 # this will end up with "too many open files" when managing large docker volumes
 case "$1" in
   "debug"|"shell")
-    docker run --init -it --rm \
+    docker run --init --privileged --rm -it \
       --platform "${DOCKER_PLATFORM}" \
       -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
-      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
       -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
+      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
       -v "${BASE_DIR}/sources":${WORKSPACE_DIR}/sources \
-      -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
-      -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
+      -v "${BASE_DIR}/stage0":${WORKSPACE_DIR}/stage0 \
+      -v "${BASE_DIR}/stage1":${WORKSPACE_DIR}/stage1 \
       "${DOCKER_IMAGE}" bash
       ;;
   *)
-    docker run --init --rm \
+    docker run --init --privileged --rm \
       --platform "${DOCKER_PLATFORM}" \
       -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
-      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
       -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
+      -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
       -v "${BASE_DIR}/sources":${WORKSPACE_DIR}/sources \
-      -v "${BASE_DIR}/packages":${WORKSPACE_DIR}/packages \
-      -v "${BASE_DIR}/work":${WORKSPACE_DIR}/work \
+      -v "${BASE_DIR}/stage0":${WORKSPACE_DIR}/stage0 \
+      -v "${BASE_DIR}/stage1":${WORKSPACE_DIR}/stage1 \
       "${DOCKER_IMAGE}" bash -x -c "
+
+# Disable sudo password prompt
 echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel
-cd ${WORKSPACE_DIR}
-make V=1 ${MAKE_PARAMS} DEVICE_OPTIMIZATION=${DEVICE_OPTIMIZATION}
+
+cd ${WORKSPACE_DIR} && \
+  mkdir -p ${STAGE0_PKGMK_WORK_DIR} ${STAGE1_PKGMK_WORK_DIR}
+  make V=1 ${MAKE_PARAMS} \
+    STAGE0_PKGMK_WORK_DIR=${STAGE0_PKGMK_WORK_DIR} \
+    STAGE1_PKGMK_WORK_DIR=${STAGE1_PKGMK_WORK_DIR}
 "
-      ;;
+    ;;
 esac
