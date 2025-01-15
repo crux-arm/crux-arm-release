@@ -79,7 +79,15 @@ BASE_PORTS = automake attr bash binutils bison coreutils dash diffutils file \
 	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make \
 	openssl patch perl pkgconf pkgutils prt-get python3 sed tar util-linux
 
+# This is a list of ports that are build-time dependencies of other ports but are not
+# listed as such, breaking the dependency sequence calculated in prepare-stage1-ports-file
+# As a result, they should be installed before the rest of the ports in stage1
+# (e.g: linux-pam requires meson, which requires python3-setuptools which requires curl
+BUILDTIME_PORTS = curl python3-setuptools meson
+
 # List of ports which will not be part of either the stage0 rootfs or the release.
+# If one of these ports appears in the ports.list file in stage1 or stage2, it is
+# because it is included as a dependency of another port.
 PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash libcap libcap-ng libxcrypt-32
 
 STAGE0_PKGMK_CONFIG_FILE = $(STAGE0_WORK_DIR)/pkgmk.conf
@@ -115,7 +123,7 @@ DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
 # The strategy to follow is to start with dev1, dev2, etc., until CRUX upstream freezes ports for rc1.
 # At that point, we will begin using rc1, rc2, ... following CRUX and continuing up to rcN when we
 # confirm a release is ready
-RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-dev1-$(DEVICE_OPTIMIZATION)
+RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-updated-$(DEVICE_OPTIMIZATION)
 
 # Load CFLAGS and COLLECTIONS for selected optimization
 ifneq ("$(wildcard $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk)", "")
@@ -151,8 +159,7 @@ PKGMK_CMD_OPTS += $(PKGMK_CMD_EXTRA_OPTS)
 # Other vars useful to create pkgmk.conf
 PKGMK_COMPRESSION_MODE ?= xz
 PKGMK_SOURCE_DIR  ?= $(WORKSPACE_DIR)/sources
-STAGE0_PKGMK_WORK_DIR ?= $(STAGE0_WORK_DIR)/work
-STAGE1_PKGMK_WORK_DIR ?= $(STAGE1_WORK_DIR)/work
+PKGMK_WORK_DIR ?= $(WORKSPACE_DIR)/work
 
 .PHONY: help
 help:
@@ -232,7 +239,8 @@ $(STAGE0_PKGMK_CONFIG_FILE): prepare-stage0-work-dir clean-stage0-pkgmkconf
 	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_SOURCE_DIR="$(PKGMK_SOURCE_DIR)"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_PACKAGE_DIR="$(STAGE0_PACKAGES_DIR)"' >> $(STAGE0_PKGMK_CONFIG_FILE)
-	@echo 'PKGMK_WORK_DIR="$(STAGE0_PKGMK_WORK_DIR)/$$name"' >> $(STAGE0_PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_WORK_DIR="$(PKGMK_WORK_DIR)/$$name"' >> $(STAGE0_PKGMK_CONFIG_FILE)
+	@mkdir -vp $(PKGMK_WORK_DIR)
 
 .PHONY: clean-stage0-pkgmkconf
 clean-stage0-pkgmkconf:
@@ -305,14 +313,13 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 	$(call DEBUG, Installing extras)
 	@sudo cp -L /etc/resolv.conf $(STAGE0_ROOTFS_DIR)/etc/resolv.conf
 	$(call DEBUG, Creating $(STAGE0_ROOTFS_TAR_FILE))
-	@cd $(STAGE0_ROOTFS_DIR) && sudo tar caf $(STAGE0_ROOTFS_TAR_FILE) *
+	@cd $(STAGE0_ROOTFS_DIR) && sudo tar cavf $(STAGE0_ROOTFS_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(STAGE0_ROOTFS_TAR_FILE)
-	@sudo rm -rf $(STAGE0_ROOTFS_DIR)
 
 .PHONY: stage0
 stage0:
-	$(MAKE) build-stage0-packages PKGMK_FAKEROOT=yes
-	$(MAKE) build-stage0-rootfs-file
+	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes
+	$(MAKE) -e build-stage0-rootfs-file
 
 .PHONY: clean-stage0
 clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-file
@@ -342,7 +349,8 @@ $(STAGE1_PKGMK_CONFIG_FILE): prepare-stage1-work-dir clean-stage1-pkgmkconf
 	@echo 'PKGMK_CURL_OPTS="--silent --retry 3"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_SOURCE_DIR="$(PKGMK_SOURCE_DIR)"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_PACKAGE_DIR="$(STAGE1_PACKAGES_DIR)"' >> $(STAGE1_PKGMK_CONFIG_FILE)
-	@echo 'PKGMK_WORK_DIR="$(STAGE1_PKGMK_WORK_DIR)/$$name"' >> $(STAGE1_PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_WORK_DIR="$(PKGMK_WORK_DIR)/$$name"' >> $(STAGE1_PKGMK_CONFIG_FILE)
+	@mkdir -vp $(PKGMK_WORK_DIR)
 
 .PHONY: clean-stage1-pkgmkconf
 clean-stage1-pkgmkconf:
@@ -373,12 +381,14 @@ clean-stage1-prtgetconf:
 prepare-stage1-ports-file: $(STAGE1_PORTS_FILE)
 $(STAGE1_PORTS_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE1_PRTGET_CONFIG_FILE)
 	$(call DEBUG, Preparing $(STAGE1_PORTS_FILE))
-	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp
+	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp1
 	@for bl in $(PORTS_BLACKLIST); do \
-		sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp; \
+		sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp1; \
 	done
-	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp | tr '\n' ' '` > $(STAGE1_PORTS_FILE)
-	@rm -f $(STAGE1_PORTS_FILE).tmp
+	tr '\n' ' ' < $(STAGE1_PORTS_FILE).tmp1 > $(STAGE1_PORTS_FILE).tmp2
+	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp2` > $(STAGE1_PORTS_FILE)
+	@sed "s|^|$(BUILDTIME_PORTS) |" -i $(STAGE1_PORTS_FILE)
+	@rm -f $(STAGE1_PORTS_FILE).tmp*
 
 .PHONY: clean-stage1-ports-file
 clean-stage1-ports-file:
@@ -402,10 +412,9 @@ $(STAGE1_ROOTFS_DIR): $(ROOTFS_TAR_FILE) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PR
 	$(call DEBUG, Creating $(STAGE1_ROOTFS_DIR))
 	@sudo mkdir $(STAGE1_ROOTFS_DIR) || exit 1
 	$(call DEBUG, Decompressing $(STAGE0_ROOTFS_TAR_FILE) to $(STAGE1_ROOTFS_DIR))
-	@sudo tar -C $(STAGE1_ROOTFS_DIR) -xf $(STAGE0_ROOTFS_TAR_FILE)
+	@sudo tar -C $(STAGE1_ROOTFS_DIR) -xvf $(STAGE0_ROOTFS_TAR_FILE)
 	$(call DEBUG, Installing extras)
-	@sudo cp -L /etc/resolv.conf $(STAGE1_ROOTFS_DIR)/etc/resolv.conf
-	@sudo mkdir -p $(STAGE1_ROOTFS_DIR)/$(STAGE1_PKGMK_WORK_DIR)
+	@sudo cp -vL /etc/resolv.conf $(STAGE1_ROOTFS_DIR)/etc/resolv.conf
 	@echo "CRUX-ARM $(RELEASE_VERSION)" | sudo tee $(STAGE1_ROOTFS_DIR)/chroot
 
 # Build all ports in stage1.
@@ -433,8 +442,8 @@ $(STAGE1_PACKAGES_DONE_FILE): $(STAGE1_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_D
 build-stage1-rootfs-file: $(STAGE1_ROOTFS_TAR_FILE)
 $(STAGE1_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
 	$(call DEBUG, Creating rootfs from stage1 packages: $(STAGE1_ROOTFS_DIR))
-	@sudo mkdir $(STAGE1_ROOTFS_DIR) || exit 1
-	@sudo mkdir -p $(STAGE1_ROOTFS_DIR)/var/lib/pkg
+	@sudo mkdir -v $(STAGE1_ROOTFS_DIR) || exit 1
+	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR)/var/lib/pkg
 	@sudo touch $(STAGE1_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
@@ -448,14 +457,14 @@ $(STAGE1_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_F
 	$(call DEBUG, Creating $(STAGE1_ROOTFS_TAR_FILE))
 	@cd $(STAGE1_ROOTFS_DIR) && sudo tar caf $(STAGE1_ROOTFS_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(STAGE1_ROOTFS_TAR_FILE)
-	@sudo rm -rf $(STAGE1_ROOTFS_DIR)
+	@sudo rm -rvf $(STAGE1_ROOTFS_DIR)
 
 .PHONY: stage1
 stage1:
 	$(call DEBUG, Downloading sources required to build stage1 packages)
-	$(MAKE) download-stage1-sources
+	$(MAKE) -e download-stage1-sources
 	$(call DEBUG, Preparing chroot environment ($(STAGE1_ROOTFS_DIR)))
-	$(MAKE) prepare-stage1-rootfs-dir
+	$(MAKE) -e prepare-stage1-rootfs-dir
 	$(call DEBUG, Mounting /dev on $(STAGE1_ROOTFS_DIR)/dev)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/dev || \
 		sudo mount --bind /dev $(STAGE1_ROOTFS_DIR)/dev
@@ -479,12 +488,11 @@ stage1:
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"cd $(WORKSPACE_DIR) && \
-				make build-stage1-packages \
+				make -e build-stage1-packages \
 				PKGMK_CMD_OPTS='$(PKGMK_CMD_OPTS)' \
 				PKGMK_CMD_EXTRA_OPTS='$(PKGMK_CMD_EXTRA_OPTS)' \
 				WORKSPACE_DIR='$(WORKSPACE_DIR)' \
-				COLLECTIONS='$(COLLECTIONS)' \
-				|| exit 1"
+				COLLECTIONS='$(COLLECTIONS)'"
 	$(call DEBUG, Exiting chroot enrivonment)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
@@ -497,7 +505,7 @@ stage1:
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/dev)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/dev
 	$(call DEBUG, Preparing chroot environment ($(STAGE1_ROOTFS_DIR)))
-	$(MAKE) build-stage1-rootfs-file
+	$(MAKE) -e build-stage1-rootfs-file
 
 .PHONY: clean-stage1
 clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-file
@@ -522,9 +530,9 @@ $(RELEASE_TAR_FILE): $(STAGE1_ROOTFS_TAR_FILE)
 bootstrap:
 	$(call DEBUG, Bootstrap started)
 	$(call DEBUG, Running Stage 0)
-	$(MAKE) stage0 2>&1 | tee $(STAGE0_LOG_FILE)
+	$(MAKE) -e stage0 2>&1 | tee $(STAGE0_LOG_FILE)
 	$(call DEBUG, Running Stage 1)
-	$(MAKE) stage1 2>&1 | tee $(STAGE1_LOG_FILE)
+	$(MAKE) -e stage1 2>&1 | tee $(STAGE1_LOG_FILE)
 	$(call DEBUG, Running Release)
-	$(MAKE) release
+	$(MAKE) -e release
 	$(call DEBUG, Bootstrap completed)
