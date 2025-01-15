@@ -123,16 +123,12 @@ DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
 # The strategy to follow is to start with dev1, dev2, etc., until CRUX upstream freezes ports for rc1.
 # At that point, we will begin using rc1, rc2, ... following CRUX and continuing up to rcN when we
 # confirm a release is ready
-RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-updated-$(DEVICE_OPTIMIZATION)
+RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-dev1-$(DEVICE_OPTIMIZATION)
 
 # Load CFLAGS and COLLECTIONS for selected optimization
 ifneq ("$(wildcard $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk)", "")
 include $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk
 endif
-
-# Export variables to sub-make
-export CRUX_ARM_ARCH
-export DEVICE_OPTIMIZATION
 
 # Default build commands
 PKGMK_CMD = pkgmk
@@ -157,9 +153,17 @@ PKGMK_CMD_OPTS ?= -d -is
 # Append user defined options (e.g. -kw)
 PKGMK_CMD_OPTS += $(PKGMK_CMD_EXTRA_OPTS)
 # Other vars useful to create pkgmk.conf
-PKGMK_COMPRESSION_MODE ?= xz
 PKGMK_SOURCE_DIR  ?= $(WORKSPACE_DIR)/sources
 PKGMK_WORK_DIR ?= $(WORKSPACE_DIR)/work
+PKGMK_COMPRESSION_MODE ?= xz
+
+# Export environment variables
+export CRUX_ARM_ARCH
+export DEVICE_OPTIMIZATION
+export RELEASE_VERSION
+export WORKSPACE_DIR
+export PKGMK_SOURCE_DIR
+export PKGMK_WORK_DIR
 
 .PHONY: help
 help:
@@ -177,6 +181,36 @@ help:
 
 .PHONY: clean
 clean: clean-stage0 clean-stage1
+
+.PHONY: debug
+debug:
+	$(call DEBUG, Debugging Environment variables)
+	@env | grep \
+		-e ^CRUX_ARM_ARCH \
+		-e ^DEVICE_OPTIMIZATION \
+		-e ^RELEASE_VERSION \
+		-e ^WORKSPACE_DIR \
+		-e ^PKGMK_SOURCE_DIR \
+		-e ^PKGMK_WORK_DIR
+	$(call DEBUG, Debugging Makefile variables)
+	@echo "PORTS_DIR:            $(PORTS_DIR)"
+	@echo "SOURCES_DIR:          $(SOURCES_DIR)"
+	@echo "STAGE0_PACKAGES_DIR:  $(STAGE0_PACKAGES_DIR)"
+	@echo "STAGE1_PACKAGES_DIR:  $(STAGE1_PACKAGES_DIR)"
+	@echo "STAGE0_ROOTFS_DIR:    $(STAGE0_ROOTFS_DIR)"
+	@echo "STAGE1_ROOTFS_DIR:    $(STAGE1_ROOTFS_DIR)"
+	$(call DEBUG, Debugging stage0 pkgmk.conf)
+	@cat $(STAGE0_PKGMK_CONFIG_FILE)
+	$(call DEBUG, Debugging stage1 pkgmk.conf)
+	@cat $(STAGE1_PKGMK_CONFIG_FILE)
+	$(call DEBUG, Debugging stage0 prt-get.conf)
+	@cat $(STAGE0_PRTGET_CONFIG_FILE)
+	$(call DEBUG, Debugging stage1 prt-get.conf)
+	@cat $(STAGE1_PRTGET_CONFIG_FILE)
+	$(call DEBUG, Debugging stage0 ports.list)
+	@cat $(STAGE0_PORTS_FILE)
+	$(call DEBUG, Debugging stage1 ports.list)
+	@cat $(STAGE1_PORTS_FILE)
 
 # -----------------------------------------------------------------------------
 # COMMON
@@ -381,11 +415,11 @@ clean-stage1-prtgetconf:
 prepare-stage1-ports-file: $(STAGE1_PORTS_FILE)
 $(STAGE1_PORTS_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE1_PRTGET_CONFIG_FILE)
 	$(call DEBUG, Preparing $(STAGE1_PORTS_FILE))
-	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp1
+	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp1 2>/dev/null
 	@for bl in $(PORTS_BLACKLIST); do \
 		sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp1; \
 	done
-	tr '\n' ' ' < $(STAGE1_PORTS_FILE).tmp1 > $(STAGE1_PORTS_FILE).tmp2
+	@tr '\n' ' ' < $(STAGE1_PORTS_FILE).tmp1 > $(STAGE1_PORTS_FILE).tmp2
 	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp2` > $(STAGE1_PORTS_FILE)
 	@sed "s|^|$(BUILDTIME_PORTS) |" -i $(STAGE1_PORTS_FILE)
 	@rm -f $(STAGE1_PORTS_FILE).tmp*
@@ -421,9 +455,11 @@ $(STAGE1_ROOTFS_DIR): $(ROOTFS_TAR_FILE) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PR
 # Since ports are built in dependency order, after each port is built, it is installed.
 # CAVEAT: This target must be run within the chroot environment as it installs packages
 # and could be a serious problem if run outside of the jail.
+# NOTE: We don't need targets for $(STAGE1_PACKAGES_DONE_FILE). Everything is passed 
+# via environment variables; otherwise, it will redo some objectives we don't want to.
 .PHONY: build-stage1-packages
 build-stage1-packages: $(STAGE1_PACKAGES_DONE_FILE)
-$(STAGE1_PACKAGES_DONE_FILE): $(STAGE1_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
+$(STAGE1_PACKAGES_DONE_FILE):
 	$(call DEBUG, Checking for a valid chroot environment)
 	@if [ ! -f /chroot ]; then \
 		echo "$(RED)Error: You are not inside chroot environment$(RESET))"; \
@@ -479,20 +515,28 @@ stage1:
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources || \
 		sudo mount --bind $(WORKSPACE_DIR)/sources $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
+	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage0 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0)
+	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
+	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0 || \
+		sudo mount --bind $(WORKSPACE_DIR)/stage0 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage1 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1 || \
 		sudo mount --bind $(WORKSPACE_DIR)/stage1 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Copying $(WORKSPACE_DIR)/Makefile on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile)
 	@cp $(WORKSPACE_DIR)/Makefile $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile
+	$(call DEBUG, Setting up chroot environment $(STAGE1_ROOTFS_DIR))
+	@env | grep \
+		-e ^CRUX_ARM_ARCH \
+		-e ^DEVICE_OPTIMIZATION \
+		-e ^RELEASE_VERSION \
+		-e ^WORKSPACE_DIR \
+		-e ^PKGMK_SOURCE_DIR \
+		-e ^PKGMK_WORK_DIR > $(STAGE1_ROOTFS_DIR)/.env
+	@mkdir -vp $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/work
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
-		"cd $(WORKSPACE_DIR) && \
-				make -e build-stage1-packages \
-				PKGMK_CMD_OPTS='$(PKGMK_CMD_OPTS)' \
-				PKGMK_CMD_EXTRA_OPTS='$(PKGMK_CMD_EXTRA_OPTS)' \
-				WORKSPACE_DIR='$(WORKSPACE_DIR)' \
-				COLLECTIONS='$(COLLECTIONS)'"
+		"source /.env; cd $(WORKSPACE_DIR) && make debug && make -e build-stage1-packages" || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
