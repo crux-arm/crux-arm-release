@@ -76,11 +76,12 @@ STAGE1_PORTS_FILE_INDEX = $(STAGE1_WORK_DIR)/ports.list.index
 # List of ports that must form a valid minimal rootfs. The dependencies of the ports
 # should not be included here; they will be calculated in the stage0-ports-file."
 ## Added curl and friends to be able to rebuild ports in stage1 - take it as a quirk
+## Also added meson ninja rsync to be able to successfully build stage1
 BASE_PORTS = automake attr bash binutils bison coreutils dash diffutils file \
 	filesystem findutils gawk gettext gcc grep glibc gperf gzip libtool m4 make \
 	openssl patch perl pkgconf pkgutils prt-get python3 sed tar util-linux \
 	curl ca-certificates \
-	meson ninja
+	meson ninja rsync
 
 # This is a list of ports that are build-time dependencies of other ports but are not
 # listed as such, breaking the dependency sequence calculated in prepare-stage1-ports-file
@@ -170,16 +171,16 @@ export PKGMK_WORK_DIR
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo '  help         Show this help information'
-	@echo '  stage0       Build stage0 packages and rootfs'
-	@echo '  stage1       Build stage1 packages and rootfs'
-	@echo '  release      Build CRUX-ARM release'
-	@echo '  bootstrap    Build all stages and bootstrap the release'
+	@echo '  help		Show this help information'
+	@echo '  stage0	Build stage0 packages and rootfs'
+	@echo '  stage1	Build stage1 packages and rootfs'
+	@echo '  release	Build CRUX-ARM release'
+	@echo '  bootstrap	Build all stages and bootstrap the release'
 	@echo
 	@echo 'Additional variables to all targets:'
 	@echo
-	@echo '  DEVICE_OPTIMIZATION  Optimize for an device (e.g: DEVICE_OPTIMIZATION=odroidxu4)'
-	@echo '  NO_COLORS            Disable output color messages (e.g: NO_COLORS=1)'
+	@echo '  DEVICE_OPTIMIZATION	Optimize for an device (e.g: DEVICE_OPTIMIZATION=odroidxu4)'
+	@echo '  NO_COLORS		Disable output color messages (e.g: NO_COLORS=1)'
 
 .PHONY: clean
 clean: clean-stage0 clean-stage1
@@ -188,12 +189,12 @@ clean: clean-stage0 clean-stage1
 debug:
 	$(call DEBUG, Debugging Environment variables)
 	@env | grep \
-	        -e ^CRUX_ARM_ARCH \
-	        -e ^DEVICE_OPTIMIZATION \
-	        -e ^RELEASE_VERSION \
-	        -e ^WORKSPACE_DIR \
-	        -e ^PKGMK_SOURCE_DIR \
-	        -e ^PKGMK_WORK_DIR
+		-e ^CRUX_ARM_ARCH \
+		-e ^DEVICE_OPTIMIZATION \
+		-e ^RELEASE_VERSION \
+		-e ^WORKSPACE_DIR \
+		-e ^PKGMK_SOURCE_DIR \
+		-e ^PKGMK_WORK_DIR
 	$(call DEBUG, Debugging Makefile variables)
 	@echo "PORTS_DIR:            $(PORTS_DIR)"
 	@echo "SOURCES_DIR:          $(SOURCES_DIR)"
@@ -226,29 +227,29 @@ $(PORTS_DIR)/core:
 $(PORTS_DIR)/core-$(CRUX_ARM_ARCH):
 	$(call DEBUG, Getting sources for ports)
 	@for COLL in $(COLLECTIONS); do \
-	        if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
-		                case $$COLL in \
-		                        core) \
-			                                git clone -v -b $(CRUX_VERSION) \
-			                                        --single-branch $(CRUX_GIT_PREFIX)/$${COLL}.git $(PORTS_DIR)/$$COLL ; \
-			                                if [ -z $(CRUX_GIT_HASH) ]; then \
-			                                        cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ; \
-			                                fi ;; \
-		                        core-$(CRUX_ARM_ARCH)) \
-			                                git clone -v -b $(CRUX_ARM_VERSION) \
-			                                        --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ; \
-			                                if [ -z $(CRUX_ARM_GIT_HASH) ]; then \
-			                                        cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_ARM_GIT_HASH) ; \
-			                                fi ;; \
-		                        *-$(CRUX_ARM_ARCH)) \
-			                                git clone -v -b $(CRUX_ARM_VERSION) \
-			                                        --single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
-		                esac; \
-		                if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
-		                        echo "ERROR: git clone failed"; \
-		                        exit 1; \
-		                fi \
-	        fi \
+		if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
+			case $$COLL in \
+				core) \
+					git clone -v -b $(CRUX_VERSION) \
+						--single-branch $(CRUX_GIT_PREFIX)/$${COLL}.git $(PORTS_DIR)/$$COLL ; \
+					if [ -z $(CRUX_GIT_HASH) ]; then \
+						cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_GIT_HASH) ; \
+					fi ;; \
+				core-$(CRUX_ARM_ARCH)) \
+					git clone -v -b $(CRUX_ARM_VERSION) \
+						--single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ; \
+					if [ -z $(CRUX_ARM_GIT_HASH) ]; then \
+						cd $(PORTS_DIR)/$$COLL && git reset --hard $(CRUX_ARM_GIT_HASH) ; \
+					fi ;; \
+				*-$(CRUX_ARM_ARCH)) \
+					git clone -v -b $(CRUX_ARM_VERSION) \
+						--single-branch $(CRUX_ARM_GIT_PREFIX)/crux-ports-$$COLL $(PORTS_DIR)/$$COLL ;; \
+			esac; \
+			if [ ! -d $(PORTS_DIR)/$$COLL ]; then \
+				echo "ERROR: git clone failed"; \
+				exit 1; \
+			fi \
+		fi \
 	done
 
 # -----------------------------------------------------------------------------
@@ -292,7 +293,7 @@ prepare-stage0-prtgetconf: $(STAGE0_PRTGET_CONFIG_FILE)
 $(STAGE0_PRTGET_CONFIG_FILE): clean-stage0-prtgetconf $(PORTS_DIR)/core
 	$(call DEBUG, Preparing file $(STAGE0_PRTGET_CONFIG_FILE) for collections $(COLLECTIONS))
 	@for COLL in $(COLLECTIONS); do \
-	        echo "prtdir $(PORTS_DIR)/$$COLL" >> $(STAGE0_PRTGET_CONFIG_FILE); \
+		echo "prtdir $(PORTS_DIR)/$$COLL" >> $(STAGE0_PRTGET_CONFIG_FILE); \
 	done
 	@echo "writelog enabled" >> $(STAGE0_PRTGET_CONFIG_FILE)
 	@echo "logmode overwrite" >> $(STAGE0_PRTGET_CONFIG_FILE)
@@ -326,8 +327,8 @@ build-stage0-packages: $(STAGE0_PACKAGES_DONE_FILE)
 $(STAGE0_PACKAGES_DONE_FILE): $(STAGE0_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE0_PKGMK_CONFIG_FILE) $(STAGE0_PRTGET_CONFIG_FILE) $(STAGE0_PORTS_FILE)
 	$(call DEBUG, Building stage0 packages from $(STAGE0_PORTS_FILE))
 	@for PORT in `cat $(STAGE0_PORTS_FILE)`; do \
-	        portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-	        ( cd $$portdir && $(PKGMK_CMD) -d -cf $(STAGE0_PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
+		portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		( cd $$portdir && $(PKGMK_CMD) -d -cf $(STAGE0_PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
 	@touch $(STAGE0_PACKAGES_DONE_FILE)
 
@@ -340,13 +341,13 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 	@sudo mkdir -vp $(STAGE0_ROOTFS_DIR)/var/lib/pkg
 	@sudo touch $(STAGE0_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `cat $(STAGE0_PORTS_FILE)`; do \
-	        portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-	        package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
-	        package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
-	        package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
-	        package="$(STAGE0_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-	        echo "Installing $$package"; \
-	        sudo pkgadd -r $(STAGE0_ROOTFS_DIR) $$package || exit 1; \
+		portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
+		package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
+		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
+		package="$(STAGE0_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+		echo "Installing $$package"; \
+		sudo pkgadd -r $(STAGE0_ROOTFS_DIR) $$package || exit 1; \
 	done
 	$(call DEBUG, Installing extras)
 	@sudo cp -vL /etc/resolv.conf $(STAGE0_ROOTFS_DIR)/etc/resolv.conf
@@ -354,14 +355,22 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 	@cd $(STAGE0_ROOTFS_DIR) && sudo tar cavf $(STAGE0_ROOTFS_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(STAGE0_ROOTFS_TAR_FILE)
 
+## TODO: first copy the version of the current Pkgfile and always use the latest?
 .PHONY: fix-setuptools
 fix-setuptools:
 	$(call DEBUG, Copying ensurepip version of setuptools)
 	cp setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
+
+.PHONY: fix-perl
+fix-setuptools:
+	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
+	cp perl.in $(PORTS_DIR)/core/perl/Pkgfile
+
 .PHONY: stage0
 stage0:
-	$(call DEBUG, Applying custom python3-setuptools fix)
+	$(call DEBUG, Applying Pkgfile fixes)
 	$(MAKE) -e fix-setuptools
+	$(MAKE) -e fix-perl
 	$(call DEBUG, Building Stage 0 packages)
 	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes
 	$(call DEBUG, Building Stage 0 rootfs)
@@ -411,7 +420,7 @@ prepare-stage1-prtgetconf: $(STAGE1_PRTGET_CONFIG_FILE)
 $(STAGE1_PRTGET_CONFIG_FILE): clean-stage1-prtgetconf $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 	$(call DEBUG, Preparing file $(STAGE1_PRTGET_CONFIG_FILE) for collections $(COLLECTIONS))
 	@for COLL in $(COLLECTIONS); do \
-	        echo "prtdir $(PORTS_DIR)/$$COLL" >> $(STAGE1_PRTGET_CONFIG_FILE); \
+		echo "prtdir $(PORTS_DIR)/$$COLL" >> $(STAGE1_PRTGET_CONFIG_FILE); \
 	done
 	@echo "writelog enabled" >> $(STAGE1_PRTGET_CONFIG_FILE)
 	@echo "logmode overwrite" >> $(STAGE1_PRTGET_CONFIG_FILE)
@@ -430,7 +439,7 @@ $(STAGE1_PORTS_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STA
 	$(call DEBUG, Preparing $(STAGE1_PORTS_FILE))
 	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp-multi-line 2>/dev/null
 	@for bl in $(PORTS_BLACKLIST); do \
-	        sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp-multi-line; \
+		sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp-multi-line; \
 	done
 	@tr '\n' ' ' < $(STAGE1_PORTS_FILE).tmp-multi-line > $(STAGE1_PORTS_FILE).tmp-one-line
 	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp-one-line` > $(STAGE1_PORTS_FILE)
@@ -448,8 +457,8 @@ $(STAGE1_PACKAGES_DIR):
 download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
 	$(call DEBUG, Downloading port sources)
 	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
-	        portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-	        ( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE)) || exit 1; \
+		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE)) || exit 1; \
 	done
 
 # Setup a valid rootfs directory to build stage1 packages
@@ -473,47 +482,47 @@ $(STAGE1_ROOTFS_DIR): $(ROOTFS_TAR_FILE) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PR
 fix-problem-packages:
 	$(call DEBUG, 3.8 quirk: fixing libcrypt.so.1 and python distutils)
 	@for PORT in perl autoconf python3 python3-setuptools ninja meson linux-pam; do \
-	        needs_rebuild="no"; \
-	        if [ "$$PORT" = "perl" ]; then \
-		                $(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" remove "$$PORT"; \
-		                portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-		                sed -i '/perlbug/d' "$$portdir/Pkgfile"; \
-		                if ldd /usr/lib/perl5/5.*/linux-thread-multi/CORE/libperl.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
-		                        needs_rebuild="yes"; \
-		                fi; \
-	        elif [ "$$PORT" = "linux-pam" ]; then \
-		                portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-		                if ldd /lib/security/pam_unix.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
-		                        needs_rebuild="yes"; \
-		                fi; \
-	        elif [ "$$PORT" = "python3" ]; then \
-		                portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-		                if ldd /usr/lib/python3.12/lib-dynload/_crypt.cpython-312-aarch64-linux-gnu.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
-		                        needs_rebuild="yes"; \
-		                fi; \
-	        elif [ "$$PORT" = "python3-setuptools" ]; then \
-                        portdir=`$(PRTGET_CMD) -if --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-	        else \
-		                portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-		                needs_rebuild="yes"; \
-	        fi; \
-	        \
-	        if [ "$$needs_rebuild" = "yes" ]; then \
-		                ( cd "$$portdir" && \
-		                  $(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) \
-		                ) || exit 1; \
-	        fi; \
-	        \
-	        package_name=`grep '^name=' "$$portdir"/Pkgfile | sed 's/name=//'`; \
-	        package_version=`grep '^version=' "$$portdir"/Pkgfile | sed 's/version=//'`; \
-	        package_release=`grep '^release=' "$$portdir"/Pkgfile | sed 's/release=//'`; \
-	        package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-	        echo "Installing $$package"; \
-	        if $(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" isinst "$$PORT"; then \
-		                pkgadd -u "$$package" -f; \
-	        else \
-		                pkgadd "$$package" -f; \
-	        fi; \
+		needs_rebuild="no"; \
+		if [ "$$PORT" = "perl" ]; then \
+			portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+			if ldd /usr/lib/perl5/5.*/linux-thread-multi/CORE/libperl.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
+				needs_rebuild="yes"; \
+				$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" remove "$$PORT"; \
+			fi; \
+		elif [ "$$PORT" = "linux-pam" ]; then \
+			portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+			if ldd /lib/security/pam_unix.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
+				needs_rebuild="yes"; \
+			fi; \
+			elif [ "$$PORT" = "python3" ]; then \
+				portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+				if ldd /usr/lib/python3.12/lib-dynload/_crypt.cpython-312-aarch64-linux-gnu.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
+					needs_rebuild="yes"; \
+				fi; \
+			elif [ "$$PORT" = "python3-setuptools" ]; then \
+				portdir=`$(PRTGET_CMD) -if --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+				needs_rebuild="yes"; \
+			else \
+				portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+				needs_rebuild="yes"; \
+			fi; \
+			\
+			if [ "$$needs_rebuild" = "yes" ]; then \
+				( cd "$$portdir" && \
+					$(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) -f \
+				) || exit 1; \
+			fi; \
+			\
+			package_name=`grep '^name=' "$$portdir"/Pkgfile | sed 's/name=//'`; \
+			package_version=`grep '^version=' "$$portdir"/Pkgfile | sed 's/version=//'`; \
+			package_release=`grep '^release=' "$$portdir"/Pkgfile | sed 's/release=//'`; \
+			package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+			echo "Installing $$package"; \
+			if $(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" isinst "$$PORT"; then \
+				pkgadd -u "$$package" -f; \
+			else \
+				pkgadd "$$package" -f; \
+			fi; \
 	done
 
 # Build all ports in stage1.
@@ -528,27 +537,27 @@ build-stage1-packages: $(STAGE1_PACKAGES_DONE_FILE)
 $(STAGE1_PACKAGES_DONE_FILE):
 	$(call DEBUG, Checking for a valid chroot environment)
 	@if [ ! -f /chroot ]; then \
-	        echo "$(RED)Error: You are not inside chroot environment$(RESET))"; \
-	        exit 1; \
+		echo "$(RED)Error: You are not inside chroot environment$(RESET))"; \
+		exit 1; \
 	fi
 	$(call DEBUG, Building stage1 packages from $(STAGE1_PORTS_FILE))
 	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
-	        if [ "$$PORT" = "python3-setuptools" ]; then \
-		                portdir=`$(PRTGET_CMD) -if --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-	        else \
-		                portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		                ( cd $$portdir && $(PKGMK_CMD) -cf $(STAGE1_PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
-		                package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
-		                package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
-		                package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
-		                package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-		                echo "Installing $$package"; \
-		                if $(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) isinst $$PORT; then \
-		                        pkgadd -u $$package; \
-		                else \
-		                        pkgadd $$package; \
-		                fi \
-	        fi \
+		if [ "$$PORT" = "python3-setuptools" ]; then \
+			portdir=`$(PRTGET_CMD) -if --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		else \
+			portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+			( cd $$portdir && $(PKGMK_CMD) -cf $(STAGE1_PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
+			package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
+			package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
+			package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
+			package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+			echo "Installing $$package"; \
+			if $(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) isinst $$PORT; then \
+				pkgadd -u $$package; \
+			else \
+				pkgadd $$package; \
+			fi \
+		fi \
 	done
 	@touch $(STAGE1_PACKAGES_DONE_FILE)
 
@@ -561,13 +570,13 @@ $(STAGE1_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_F
 	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR)/var/lib/pkg
 	@sudo touch $(STAGE1_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
-	        portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-	        package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
-	        package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
-	        package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
-	        package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-	        echo "Installing $$package"; \
-	        sudo pkgadd -r $(STAGE1_ROOTFS_DIR) $$package || exit 1; \
+		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
+		package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
+		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
+		package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+		echo "Installing $$package"; \
+		sudo pkgadd -r $(STAGE1_ROOTFS_DIR) $$package || exit 1; \
 	done
 	$(call DEBUG, Creating $(STAGE1_ROOTFS_TAR_FILE))
 	@cd $(STAGE1_ROOTFS_DIR) && sudo tar cavf $(STAGE1_ROOTFS_TAR_FILE) *
@@ -581,47 +590,47 @@ stage1:
 	$(MAKE) -e prepare-stage1-rootfs-dir
 	$(call DEBUG, Mounting /dev on $(STAGE1_ROOTFS_DIR)/dev)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/dev || \
-	        sudo mount --bind /dev $(STAGE1_ROOTFS_DIR)/dev
+		sudo mount --bind /dev $(STAGE1_ROOTFS_DIR)/dev
 	$(call DEBUG, Mounting /proc on $(STAGE1_ROOTFS_DIR)/proc)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/proc || \
-	        sudo mount --bind /proc $(STAGE1_ROOTFS_DIR)/proc
+		sudo mount --bind /proc $(STAGE1_ROOTFS_DIR)/proc
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports || \
-	        sudo mount --bind $(WORKSPACE_DIR)/ports $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
+		sudo mount --bind $(WORKSPACE_DIR)/ports $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/sources on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources || \
-	        sudo mount --bind $(WORKSPACE_DIR)/sources $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
+		sudo mount --bind $(WORKSPACE_DIR)/sources $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage0 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0 || \
-	        sudo mount --bind $(WORKSPACE_DIR)/stage0 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
+		sudo mount --bind $(WORKSPACE_DIR)/stage0 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage1 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1 || \
-	        sudo mount --bind $(WORKSPACE_DIR)/stage1 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
+		sudo mount --bind $(WORKSPACE_DIR)/stage1 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Copying $(WORKSPACE_DIR)/Makefile on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile)
 	@cp $(WORKSPACE_DIR)/Makefile $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile
 	$(call DEBUG, Setting up chroot environment $(STAGE1_ROOTFS_DIR))
 	@env | grep \
-	        -e ^CRUX_ARM_ARCH \
-	        -e ^DEVICE_OPTIMIZATION \
-	        -e ^RELEASE_VERSION \
-	        -e ^WORKSPACE_DIR \
-	        -e ^PKGMK_SOURCE_DIR \
-	        -e ^PKGMK_WORK_DIR > $(STAGE1_ROOTFS_DIR)/.env
+		-e ^CRUX_ARM_ARCH \
+		-e ^DEVICE_OPTIMIZATION \
+		-e ^RELEASE_VERSION \
+		-e ^WORKSPACE_DIR \
+		-e ^PKGMK_SOURCE_DIR \
+		-e ^PKGMK_WORK_DIR > $(STAGE1_ROOTFS_DIR)/.env
 	@mkdir -vp $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/work
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR), fixing faulty packages)
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
-	        "source /.env; cd $(WORKSPACE_DIR) && \
-		                make -e fix-problem-packages" || exit 1
+		"source /.env; cd $(WORKSPACE_DIR) && \
+		make -e fix-problem-packages" || exit 1
 	$(call DEBUG, Deleting packages.done file..)
 	rm $(STAGE1_WORK_DIR)/packages.done
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
-	        "source /.env; cd $(WORKSPACE_DIR) && \
-		                make -e build-stage1-packages" || exit 1
+		"source /.env; cd $(WORKSPACE_DIR) && \
+		make -e build-stage1-packages" || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
