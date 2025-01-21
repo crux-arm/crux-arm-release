@@ -108,12 +108,14 @@ STAGE1_PACKAGES_DONE_FILE = $(STAGE1_WORK_DIR)/packages.done
 
 STAGE0_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stage0
 STAGE1_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stage1
+FINAL_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-final
 
 STAGE0_ROOTFS_TAR_FILE = $(STAGE0_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-stage0.tar.xz
-STAGE1_ROOTFS_TAR_FILE = $(STAGE1_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-stage1.tar.xz
+FINAL_ROOTFS_TAR_FILE = $(FINAL_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-final.tar.xz
 
 STAGE0_LOG_FILE = $(STAGE0_WORK_DIR)/stage0.log
 STAGE1_LOG_FILE = $(STAGE1_WORK_DIR)/stage1.log
+FINAL_LOG_FILE = $(WORKSPACE_DIR)/stage-final.log
 
 # Optimization based on devices
 DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
@@ -357,12 +359,12 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 
 ## TODO: first copy the version of the current Pkgfile and always use the latest?
 .PHONY: fix-setuptools
-fix-setuptools:
+fix-setuptools: prepare-ports-dir
 	$(call DEBUG, Copying ensurepip version of setuptools)
 	cp setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
 
 .PHONY: fix-perl
-fix-perl:
+fix-perl: prepare-ports-dir
 	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
 	cp perl.in $(PORTS_DIR)/core/perl/Pkgfile
 
@@ -561,27 +563,6 @@ $(STAGE1_PACKAGES_DONE_FILE):
 	done
 	@touch $(STAGE1_PACKAGES_DONE_FILE)
 
-# Create a rootfs file with stage1 packages
-.PHONY: build-stage1-rootfs-file
-build-stage1-rootfs-file: $(STAGE1_ROOTFS_TAR_FILE)
-$(STAGE1_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
-	$(call DEBUG, Creating rootfs from stage1 packages: $(STAGE1_ROOTFS_DIR))
-	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR) || exit 1
-	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR)/var/lib/pkg
-	@sudo touch $(STAGE1_ROOTFS_DIR)/var/lib/pkg/db
-	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
-		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
-		package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
-		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
-		package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-		echo "Installing $$package"; \
-		sudo pkgadd -r $(STAGE1_ROOTFS_DIR) $$package || exit 1; \
-	done
-	$(call DEBUG, Creating $(STAGE1_ROOTFS_TAR_FILE))
-	@cd $(STAGE1_ROOTFS_DIR) && sudo tar cavf $(STAGE1_ROOTFS_TAR_FILE) *
-	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(STAGE1_ROOTFS_TAR_FILE)
-
 .PHONY: stage1
 stage1:
 	$(call DEBUG, Downloading sources required to build stage1 packages)
@@ -640,11 +621,45 @@ stage1:
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/proc
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/dev)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/dev
-	$(MAKE) -e build-stage1-rootfs-file
 
 .PHONY: clean-stage1
 clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-file
 	@rm $(STAGE1_ROOTFS_TAR_FILE)
+
+
+#------------------------------------------------------------------------------
+# Final stage
+#
+
+.PHONY: prepare-final-rootfs-dir
+prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR)
+$(FINAL_ROOTFS_DIR):
+	@mkdir -vp $(FINAL_ROOTFS_DIR)
+
+# Create a rootfs file with stage1 packages
+.PHONY: build-final-rootfs-file
+build-final-rootfs-file: $(STAGE1_ROOTFS_TAR_FILE) prepare-final-rootfs-dir
+$(FINAL_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
+	$(call DEBUG, Creating rootfs from stage1 packages: $(FINAL_ROOTFS_DIR))
+	@sudo mkdir -vp $(FINAL_ROOTFS_DIR) || exit 1
+	@sudo mkdir -vp $(FINAL_ROOTFS_DIR)/var/lib/pkg
+	@sudo touch $(FINAL_ROOTFS_DIR)/var/lib/pkg/db
+	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
+		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
+		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
+		package_version=`grep '^version=' $$portdir/Pkgfile | sed 's/version=//'`; \
+		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
+		package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+		echo "Installing $$package"; \
+		sudo pkgadd -r $(FINAL_ROOTFS_DIR) $$package || exit 1; \
+	done
+	$(call DEBUG, Creating $(FINAL_ROOTFS_TAR_FILE))
+	@cd $(FINAL_ROOTFS_DIR) && sudo tar cavf $(FINAL_ROOTFS_TAR_FILE) *
+	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(FINAL_ROOTFS_TAR_FILE)
+
+.PHONY: clean-final-rootfs
+clean-final-rootfs:
+	@rm $(FINAL_ROOTFS_TAR_FILE)
 
 #------------------------------------------------------------------------------
 # RELEASE
@@ -652,10 +667,14 @@ clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-
 
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
-$(RELEASE_TAR_FILE): $(STAGE1_ROOTFS_TAR_FILE)
+$(RELEASE_TAR_FILE): $(FINAL_ROOTFS_TAR_FILE)
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
-	@cd $(WORKSPACE_DIR) && ln -sv $(STAGE1_ROOTFS_TAR_FILE) $(RELEASE_TAR_FILE)
+	@cd $(WORKSPACE_DIR) && ln -sv $(FINAL_ROOTFS_TAR_FILE) $(RELEASE_TAR_FILE)
 	$(call DEBUG, Release completed)
+
+.PHONY: clean-release
+clean-release:
+	@rm $(RELEASE_TAR_FILE)
 
 #------------------------------------------------------------------------------
 # BOOSTRAP
@@ -668,6 +687,8 @@ bootstrap:
 	$(MAKE) -e stage0 2>&1 | tee $(STAGE0_LOG_FILE)
 	$(call DEBUG, Running Stage 1)
 	$(MAKE) -e stage1 2>&1 | tee $(STAGE1_LOG_FILE)
+	$(call DEBUG, Final stage)
+	$(MAKE) -e build-final-rootfs-file | tee $(FINAL_LOG_FILE)
 	$(call DEBUG, Running Release)
 	$(MAKE) -e release
 	$(call DEBUG, Bootstrap completed)
