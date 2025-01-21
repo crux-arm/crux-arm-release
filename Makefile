@@ -128,7 +128,7 @@ DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
 # At that point, we will begin using rc1, rc2, ... following CRUX and continuing up to rcN when we
 # confirm a release is ready
 RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-dev1-$(DEVICE_OPTIMIZATION)
-RELEASE_TAR_FILE = $(WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs.tar.xz
+RELEASE_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(RELEASE_VERSION).rootfs.tar.xz
 
 # Load CFLAGS and COLLECTIONS for selected optimization
 ifneq ("$(wildcard $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk)", "")
