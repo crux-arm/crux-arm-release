@@ -361,12 +361,12 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 .PHONY: fix-setuptools
 fix-setuptools: prepare-ports-dir
 	$(call DEBUG, Copying ensurepip version of setuptools)
-	cp setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
+	cp quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
 
 .PHONY: fix-perl
 fix-perl: prepare-ports-dir
 	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
-	cp perl.in $(PORTS_DIR)/core/perl/Pkgfile
+	cp quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile
 
 .PHONY: stage0
 stage0:
