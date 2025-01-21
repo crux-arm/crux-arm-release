@@ -362,7 +362,7 @@ fix-setuptools:
 	cp setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
 
 .PHONY: fix-perl
-fix-setuptools:
+fix-perl:
 	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
 	cp perl.in $(PORTS_DIR)/core/perl/Pkgfile
 
@@ -509,7 +509,7 @@ fix-problem-packages:
 			\
 			if [ "$$needs_rebuild" = "yes" ]; then \
 				( cd "$$portdir" && \
-					$(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) -f \
+					$(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) -if \
 				) || exit 1; \
 			fi; \
 			\
@@ -625,8 +625,6 @@ stage1:
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
 		make -e fix-problem-packages" || exit 1
-	$(call DEBUG, Deleting packages.done file..)
-	rm $(STAGE1_WORK_DIR)/packages.done
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
