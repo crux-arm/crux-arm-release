@@ -63,10 +63,11 @@ WORKSPACE_DIR ?= $(realpath $(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
 # Common directories to all stages
 PORTS_DIR = $(WORKSPACE_DIR)/ports
 SOURCES_DIR = $(WORKSPACE_DIR)/sources
-
+LOGS_DIR = $(WORKSPACE_DIR)/logs
 STAGE0_WORK_DIR = $(WORKSPACE_DIR)/stage0
 STAGE1_WORK_DIR = $(WORKSPACE_DIR)/stage1
-
+FINAL_WORK_DIR = $(WORKSPACE_DIR)/final
+RELEASE_WORK_DIR = $(WORKSPACE_DIR)/release
 STAGE0_PORTS_FILE = $(STAGE0_WORK_DIR)/ports.list
 STAGE1_PORTS_FILE = $(STAGE1_WORK_DIR)/ports.list
 
@@ -111,11 +112,11 @@ STAGE1_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stage1
 FINAL_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-final
 
 STAGE0_ROOTFS_TAR_FILE = $(STAGE0_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-stage0.tar.xz
-FINAL_ROOTFS_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-final.tar.xz
+FINAL_ROOTFS_TAR_FILE = $(FINAL_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-final.tar.xz
 
-STAGE0_LOG_FILE = $(STAGE0_WORK_DIR)/stage0.log
-STAGE1_LOG_FILE = $(STAGE1_WORK_DIR)/stage1.log
-FINAL_LOG_FILE = $(WORKSPACE_DIR)/stage-final.log
+STAGE0_LOG_FILE = $(LOGS_DIR)/stage0.log
+STAGE1_LOG_FILE = $(LOGS_DIR)/stage1.log
+FINAL_LOG_FILE = $(LOGS_DIR)/stage-final.log
 
 # Optimization based on devices
 DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
@@ -128,7 +129,7 @@ DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
 # At that point, we will begin using rc1, rc2, ... following CRUX and continuing up to rcN when we
 # confirm a release is ready
 RELEASE_VERSION ?= $(CRUX_ARM_VERSION)-dev1-$(DEVICE_OPTIMIZATION)
-RELEASE_TAR_FILE = $(WORKSPACE_DIR)/crux-arm-$(RELEASE_VERSION).rootfs.tar.xz
+RELEASE_TAR_FILE = $(RELEASE_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs.tar.xz
 
 # Load CFLAGS and COLLECTIONS for selected optimization
 ifneq ("$(wildcard $(WORKSPACE_DIR)/devices/$(DEVICE_OPTIMIZATION).mk)", "")
@@ -221,10 +222,19 @@ debug:
 # COMMON
 #
 
+# Prepare needed directories:
+#	- sources
+#	- logs
+
+.PHONY: prepare-dirs
+prepare-dirs: $(LOGS_WORK_DIR)
+	@mkdir -vp $(SOURCES_DIR)
+	@mkdir -vp $(LOGS_DIR)
+
 # Clones all COLLECTIONS of ports required to generate the release
 # Upstream ports from CRUX's core is frozen to a certain version: $(CRUX_GIT_HASH)
 .PHONY: prepare-ports-dir
-prepare-ports-dir: $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
+prepare-ports-dir: $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) prepare-dirs
 $(PORTS_DIR)/core:
 $(PORTS_DIR)/core-$(CRUX_ARM_ARCH):
 	$(call DEBUG, Getting sources for ports)
@@ -609,13 +619,13 @@ stage1:
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
-		make -e build-stage1-packages" || exit 1
+		make -e build-stage1-packages" 2>&1 | tee $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
-	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
+	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
-	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources)
+	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
-	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports)
+	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/proc)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/proc
@@ -631,17 +641,24 @@ clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-
 # Final stage
 #
 
+.PHONY: prepare-final-work-dir
+prepare-final-work-dir: $(FINAL_WORK_DIR)
+$(FINAL_WORK_DIR):
+	@mkdir -vp $(FINAL_WORK_DIR)
+
 .PHONY: prepare-final-rootfs-dir
-prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR)
+prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR) $(STAGE1_ROOTFS_TAR_FILE) $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
 $(FINAL_ROOTFS_DIR):
-	@mkdir -vp $(FINAL_ROOTFS_DIR)
+	@sudo mkdir -vp $(FINAL_ROOTFS_DIR) || exit 1
 
 # Create a rootfs file with stage1 packages
 .PHONY: build-final-rootfs-file
-build-final-rootfs-file: $(STAGE1_ROOTFS_TAR_FILE) prepare-final-rootfs-dir
-$(FINAL_ROOTFS_TAR_FILE): $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
+build-final-rootfs-file: $(FINAL_ROOTFS_TAR_FILE)
+$(FINAL_ROOTFS_TAR_FILE):
+	$(call DEBUG, Preparing final rootfs environment ($(FINAL_ROOTFS_DIR)))
+	@cd $(WORKSPACE_DIR) && \
+		make -e prepare-final-rootfs-dir
 	$(call DEBUG, Creating rootfs from stage1 packages: $(FINAL_ROOTFS_DIR))
-	@sudo mkdir -vp $(FINAL_ROOTFS_DIR) || exit 1
 	@sudo mkdir -vp $(FINAL_ROOTFS_DIR)/var/lib/pkg
 	@sudo touch $(FINAL_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
@@ -665,11 +682,18 @@ clean-final-rootfs:
 # RELEASE
 #
 
+.PHONY: prepare-release-dir
+prepare-release-dir: $(RELEASE_WORK_DIR)
+$(RELEASE_WORK_DIR):
+	@mkdir -vp $(RELEASE_WORK_DIR)
+
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
 $(RELEASE_TAR_FILE): $(FINAL_ROOTFS_TAR_FILE)
+	$(call DEBUG, Preparing release directory ($(RELEASE_WORK_DIR)))
+	$(MAKE) -e prepare-release-dir
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
-	@cd $(WORKSPACE_DIR) && ln -sv $(FINAL_ROOTFS_TAR_FILE) $(RELEASE_TAR_FILE)
+	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(FINAL_ROOTFS_TAR_FILE) | sed -e "s|/crux-arm-release|..|g"` $(RELEASE_TAR_FILE)
 	$(call DEBUG, Release completed)
 
 .PHONY: clean-release
@@ -686,9 +710,9 @@ bootstrap:
 	$(call DEBUG, Running Stage 0)
 	$(MAKE) -e stage0 2>&1 | tee $(STAGE0_LOG_FILE)
 	$(call DEBUG, Running Stage 1)
-	$(MAKE) -e stage1 2>&1 | tee $(STAGE1_LOG_FILE)
+	$(MAKE) -e stage1
 	$(call DEBUG, Final stage)
-	$(MAKE) -e build-final-rootfs-file | tee $(FINAL_LOG_FILE)
+	$(MAKE) -e build-final-rootfs-file
 	$(call DEBUG, Running Release)
 	$(MAKE) -e release
 	$(call DEBUG, Bootstrap completed)
