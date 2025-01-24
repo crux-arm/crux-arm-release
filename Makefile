@@ -176,7 +176,7 @@ help:
 	@echo "Targets:"
 	@echo '  help		Show this help information'
 	@echo '  stage0	Build stage0 packages and rootfs'
-	@echo '  stage1	Build stage1 packages and rootfs'
+	@echo '  stage1	Build stage1 packages'
 	@echo '  release	Build CRUX-ARM release'
 	@echo '  bootstrap	Build all stages and bootstrap the release'
 	@echo
@@ -252,12 +252,10 @@ debug:
 # COMMON
 #
 
-# Prepare needed directories:
-#	- sources
-#	- logs
+# Prepare needed directories: sources and logs
 
 .PHONY: prepare-dirs
-prepare-dirs: $(LOGS_WORK_DIR)
+prepare-dirs: $(LOGS_DIR)
 	@mkdir -vp $(SOURCES_DIR)
 	@mkdir -vp $(LOGS_DIR)
 
@@ -319,6 +317,7 @@ $(STAGE0_PKGMK_CONFIG_FILE): prepare-stage0-work-dir clean-stage0-pkgmkconf
 	@echo 'PKGMK_SOURCE_DIR="$(PKGMK_SOURCE_DIR)"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_PACKAGE_DIR="$(STAGE0_PACKAGES_DIR)"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_WORK_DIR="$(PKGMK_WORK_DIR)/$$name"' >> $(STAGE0_PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_IGNORE_MD5SUM="yes"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_IGNORE_FOOTPRINT="yes"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_IGNORE_SIGNATURE="yes"' >> $(STAGE0_PKGMK_CONFIG_FILE)
 	@mkdir -vp $(PKGMK_WORK_DIR)
@@ -447,6 +446,7 @@ $(STAGE1_PKGMK_CONFIG_FILE): prepare-stage1-work-dir clean-stage1-pkgmkconf
 	@echo 'PKGMK_SOURCE_DIR="$(PKGMK_SOURCE_DIR)"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_PACKAGE_DIR="$(STAGE1_PACKAGES_DIR)"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_WORK_DIR="$(PKGMK_WORK_DIR)/$$name"' >> $(STAGE1_PKGMK_CONFIG_FILE)
+	@echo 'PKGMK_IGNORE_MD5SUM="yes"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@echo 'PKGMK_IGNORE_SIGNATURE="yes"' >> $(STAGE1_PKGMK_CONFIG_FILE)
 	@mkdir -vp $(PKGMK_WORK_DIR)
 
@@ -536,35 +536,35 @@ fix-problem-packages:
 			if ldd /lib/security/pam_unix.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
 				needs_rebuild="yes"; \
 			fi; \
-			elif [ "$$PORT" = "python3" ]; then \
-				portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-				if ldd /usr/lib/python3.12/lib-dynload/_crypt.cpython-312-aarch64-linux-gnu.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
-					needs_rebuild="yes"; \
-				fi; \
-			elif [ "$$PORT" = "python3-setuptools" ]; then \
-				portdir=`$(PRTGET_CMD) -if --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
-				needs_rebuild="yes"; \
-			else \
-				portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+		elif [ "$$PORT" = "python3" ]; then \
+			portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+			if ldd /usr/lib/python3.12/lib-dynload/_crypt.cpython-312-aarch64-linux-gnu.so 2>/dev/null | grep -Eq "libcrypt.so.1|not found"; then \
 				needs_rebuild="yes"; \
 			fi; \
-			\
-			if [ "$$needs_rebuild" = "yes" ]; then \
-				( cd "$$portdir" && \
-					$(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) -if \
-				) || exit 1; \
-			fi; \
-			\
-			package_name=`grep '^name=' "$$portdir"/Pkgfile | sed 's/name=//'`; \
-			package_version=`grep '^version=' "$$portdir"/Pkgfile | sed 's/version=//'`; \
-			package_release=`grep '^release=' "$$portdir"/Pkgfile | sed 's/release=//'`; \
-			package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
-			echo "Installing $$package"; \
-			if $(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" isinst "$$PORT"; then \
-				pkgadd -u "$$package" -f; \
-			else \
-				pkgadd "$$package" -f; \
-			fi; \
+		elif [ "$$PORT" = "python3-setuptools" ]; then \
+			portdir=`$(PRTGET_CMD) -if --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+				needs_rebuild="yes"; \
+		else \
+			portdir=`$(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" path "$$PORT"`; \
+			needs_rebuild="yes"; \
+		fi; \
+		\
+		if [ "$$needs_rebuild" = "yes" ]; then \
+			( cd "$$portdir" && \
+				$(PKGMK_CMD) -cf "$(STAGE1_PKGMK_CONFIG_FILE)" $(PKGMK_CMD_OPTS) -if \
+			) || exit 1; \
+		fi; \
+		\
+		package_name=`grep '^name=' "$$portdir"/Pkgfile | sed 's/name=//'`; \
+		package_version=`grep '^version=' "$$portdir"/Pkgfile | sed 's/version=//'`; \
+		package_release=`grep '^release=' "$$portdir"/Pkgfile | sed 's/release=//'`; \
+		package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
+		echo "Installing $$package"; \
+		if $(PRTGET_CMD) --config="$(STAGE1_PRTGET_CONFIG_FILE)" isinst "$$PORT"; then \
+			pkgadd -u "$$package" -f; \
+		else \
+			pkgadd "$$package" -f; \
+		fi; \
 	done
 
 # Build all ports in stage1.
@@ -646,11 +646,15 @@ stage1:
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
 		make -e fix-problem-packages" || exit 1
-	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR))
+	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR), building stage1 packages)
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
 		make -e build-stage1-packages" 2>&1 | tee $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
+	$(call DEBUG, Preparing final stage rootfs)
+	$(MAKE) -e final-stage | tee $(FINAL_LOG_FILE) || exit 1
+	$(call DEBUG, Running Release)
+	$(MAKE) -e release
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
@@ -677,7 +681,7 @@ $(FINAL_WORK_DIR):
 	@mkdir -vp $(FINAL_WORK_DIR)
 
 .PHONY: prepare-final-rootfs-dir
-prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR) $(STAGE1_ROOTFS_TAR_FILE) $(STAGE1_PACKAGES_DONE_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
+prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR)
 $(FINAL_ROOTFS_DIR):
 	@sudo mkdir -vp $(FINAL_ROOTFS_DIR) || exit 1
 
@@ -685,10 +689,6 @@ $(FINAL_ROOTFS_DIR):
 .PHONY: build-final-rootfs-file
 build-final-rootfs-file: $(FINAL_ROOTFS_TAR_FILE)
 $(FINAL_ROOTFS_TAR_FILE):
-	$(call DEBUG, Preparing final rootfs environment ($(FINAL_ROOTFS_DIR)))
-	@cd $(WORKSPACE_DIR) && \
-		make -e prepare-final-rootfs-dir
-	$(call DEBUG, Creating rootfs from stage1 packages: $(FINAL_ROOTFS_DIR))
 	@sudo mkdir -vp $(FINAL_ROOTFS_DIR)/var/lib/pkg
 	@sudo touch $(FINAL_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
@@ -703,6 +703,16 @@ $(FINAL_ROOTFS_TAR_FILE):
 	$(call DEBUG, Creating $(FINAL_ROOTFS_TAR_FILE))
 	@cd $(FINAL_ROOTFS_DIR) && sudo tar cavf $(FINAL_ROOTFS_TAR_FILE) *
 	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(FINAL_ROOTFS_TAR_FILE)
+	@touch $(FINAL_ROOTFS_TAR_FILE)
+
+.PHONY: final-stage
+final-stage:
+	$(call DEBUG, Preparing final stage work directory)
+	$(MAKE) -e prepare-final-work-dir
+	$(call DEBUG, Preparing final stage rootfs directory)
+	$(MAKE) -e prepare-final-rootfs-dir
+	$(call DEBUG, Creating rootfs from stage1 packages: $(FINAL_ROOTFS_DIR))
+	$(MAKE) -e build-final-rootfs-file
 
 .PHONY: clean-final-rootfs
 clean-final-rootfs:
@@ -741,8 +751,4 @@ bootstrap:
 	$(MAKE) -e stage0 2>&1 | tee $(STAGE0_LOG_FILE)
 	$(call DEBUG, Running Stage 1)
 	$(MAKE) -e stage1
-	$(call DEBUG, Final stage)
-	$(MAKE) -e build-final-rootfs-file
-	$(call DEBUG, Running Release)
-	$(MAKE) -e release
 	$(call DEBUG, Bootstrap completed)
