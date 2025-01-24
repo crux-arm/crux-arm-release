@@ -93,7 +93,7 @@ BUILDTIME_PORTS = python3-setuptools ninja meson libuv lzlib rhash jsoncpp \
 # List of ports which will not be part of either the stage0 rootfs or the release.
 # If one of these ports appears in the ports.list file in stage1 or stage2, it is
 # because it is included as a dependency of another port.
-PORTS_BLACKLIST = glibc-32 jsoncpp libuv lzlib rhash libcap libcap-ng libxcrypt-32
+PORTS_BLACKLIST = glibc-32 libxcrypt-32
 
 STAGE0_PKGMK_CONFIG_FILE = $(STAGE0_WORK_DIR)/pkgmk.conf
 STAGE1_PKGMK_CONFIG_FILE = $(STAGE1_WORK_DIR)/pkgmk.conf
@@ -206,17 +206,47 @@ debug:
 	@echo "STAGE0_ROOTFS_DIR:    $(STAGE0_ROOTFS_DIR)"
 	@echo "STAGE1_ROOTFS_DIR:    $(STAGE1_ROOTFS_DIR)"
 	$(call DEBUG, Debugging stage0 pkgmk.conf)
-	@cat $(STAGE0_PKGMK_CONFIG_FILE)
+	@if [ -f "$(STAGE0_PKGMK_CONFIG_FILE)" ]; then \
+		echo "Contents of $(STAGE0_PKGMK_CONFIG_FILE):"; \
+		cat "$(STAGE0_PKGMK_CONFIG_FILE)"; \
+	else \
+		echo "File $(STAGE0_PKGMK_CONFIG_FILE) does not exist."; \
+	fi
 	$(call DEBUG, Debugging stage1 pkgmk.conf)
-	@cat $(STAGE1_PKGMK_CONFIG_FILE)
+	@if [ -f "$(STAGE1_PKGMK_CONFIG_FILE)" ]; then \
+		echo "Contents of $(STAGE1_PKGMK_CONFIG_FILE):"; \
+		cat "$(STAGE1_PKGMK_CONFIG_FILE)"; \
+	else \
+		echo "File $(STAGE1_PKGMK_CONFIG_FILE) does not exist."; \
+	fi
 	$(call DEBUG, Debugging stage0 prt-get.conf)
-	@cat $(STAGE0_PRTGET_CONFIG_FILE)
+	@if [ -f "$(STAGE0_PRTGET_CONFIG_FILE)" ]; then \
+		echo "Contents of $(STAGE0_PRTGET_CONFIG_FILE):"; \
+		cat "$(STAGE0_PRTGET_CONFIG_FILE)"; \
+	else \
+		echo "File $(STAGE0_PRTGET_CONFIG_FILE) does not exist."; \
+	fi
 	$(call DEBUG, Debugging stage1 prt-get.conf)
-	@cat $(STAGE1_PRTGET_CONFIG_FILE)
+	@if [ -f "$(STAGE1_PRTGET_CONFIG_FILE)" ]; then \
+		echo "Contents of $(STAGE1_PRTGET_CONFIG_FILE):"; \
+		cat "$(STAGE1_PRTGET_CONFIG_FILE)"; \
+	else \
+		echo "File $(STAGE1_PRTGET_CONFIG_FILE) does not exist."; \
+	fi
 	$(call DEBUG, Debugging stage0 ports.list)
-	@cat $(STAGE0_PORTS_FILE)
+	@if [ -f "$(STAGE0_PORTS_FILE)" ]; then \
+		echo "Contents of $(STAGE0_PORTS_FILE):"; \
+		cat "$(STAGE0_PORTS_FILE)"; \
+	else \
+		echo "File $(STAGE0_PORTS_FILE) does not exist."; \
+	fi
 	$(call DEBUG, Debugging stage1 ports.list)
-	@cat $(STAGE1_PORTS_FILE)
+	@if [ -f "$(STAGE1_PORTS_FILE)" ]; then \
+		echo "Contents of $(STAGE1_PORTS_FILE):"; \
+		cat "$(STAGE1_PORTS_FILE)"; \
+	else \
+		echo "File $(STAGE1_PORTS_FILE) does not exist."; \
+	fi
 
 # -----------------------------------------------------------------------------
 # COMMON
