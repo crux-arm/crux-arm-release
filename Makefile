@@ -17,10 +17,9 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 # Usage:
-#   make stage0     - Build base packages (Stage 0)
-#   make stage1     - Build additional packages in chroot (Stage 1)
-#   make release    - Create final CRUX-ARM release package
-#   make bootstrap  - Run the full build process
+#   make stage0     - Build packages and create a rootfs file using current host (Stage 0)
+#   make stage1     - Build packages using the generated stage0 rootfs file in chroot (Stage 1)
+#   make bootstrap  - Run the full build process to create the final release rootfs file
 #
 # For more information, run:
 #   make help
@@ -174,11 +173,10 @@ export PKGMK_WORK_DIR
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo '  help		Show this help information'
+	@echo '  help	Show this help information'
 	@echo '  stage0	Build stage0 packages and rootfs'
 	@echo '  stage1	Build stage1 packages'
-	@echo '  release	Build CRUX-ARM release'
-	@echo '  bootstrap	Build all stages and bootstrap the release'
+	@echo '  bootstrap	Build all stages and create the release'
 	@echo
 	@echo 'Additional variables to all targets:'
 	@echo
@@ -401,12 +399,24 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 .PHONY: fix-setuptools
 fix-setuptools: prepare-ports-dir
 	$(call DEBUG, Copying ensurepip version of setuptools)
-	cp quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile
+	@cmp -s quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile; \
+	RETVAL=$$?; \
+	if [ $$RETVAL -eq 0 ]; then \
+		echo "No need to update $(PORTS_DIR)/core/python3-setuptools/Pkgfile"; \
+	else \
+		cp quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile; \
+	fi
 
 .PHONY: fix-perl
 fix-perl: prepare-ports-dir
 	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
-	cp quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile
+	@cmp -s quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile; \
+	RETVAL=$$?; \
+	if [ $$RETVAL -eq 0 ]; then \
+		echo "No need to update $(PORTS_DIR)/core/perl/Pkgfile"; \
+	else \
+	cp quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile; \
+	fi
 
 .PHONY: stage0
 stage0:
@@ -507,7 +517,7 @@ download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(ST
 # Setup a valid rootfs directory to build stage1 packages
 .PHONY: prepare-stage1-rootfs-dir
 prepare-stage1-rootfs-dir: $(STAGE1_ROOTFS_DIR)
-$(STAGE1_ROOTFS_DIR): $(ROOTFS_TAR_FILE) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PRTGET_CONFIG_FILE)
+$(STAGE1_ROOTFS_DIR):
 	$(call DEBUG, Creating $(STAGE1_ROOTFS_DIR))
 	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR) || exit 1
 	$(call DEBUG, Decompressing $(STAGE0_ROOTFS_TAR_FILE) to $(STAGE1_ROOTFS_DIR))
@@ -653,7 +663,7 @@ stage1:
 		make -e build-stage1-packages" 2>&1 | tee $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
 	$(call DEBUG, Preparing final stage rootfs)
-	$(MAKE) -e final-stage | tee $(FINAL_LOG_FILE) || exit 1
+	$(MAKE) -e final-stage 2>&1 | tee $(FINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Running Release)
 	$(MAKE) -e release
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
