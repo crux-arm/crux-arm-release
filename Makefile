@@ -256,6 +256,7 @@ debug:
 
 .PHONY: prepare-dirs
 prepare-dirs: $(LOGS_DIR)
+$(LOGS_DIR):
 	@mkdir -vp $(SOURCES_DIR)
 	@mkdir -vp $(LOGS_DIR)
 
