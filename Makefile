@@ -733,11 +733,11 @@ $(STAGEFINAL_ROOTFS_TAR_FILE):
 .PHONY: final-stage
 final-stage:
 	$(call DEBUG, Preparing final stage work directory)
-	$(MAKE) -e prepare-final-work-dir 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
+	$(MAKE) -e prepare-final-work-dir 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Preparing final stage rootfs directory)
-	$(MAKE) -e prepare-final-rootfs-dir 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
+	$(MAKE) -e prepare-final-rootfs-dir 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Creating rootfs from stage1 packages: $(STAGEFINAL_ROOTFS_DIR))
-	$(MAKE) -e build-final-rootfs-file 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
+	$(MAKE) -e build-final-rootfs-file 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
 
 .PHONY: clean-final-rootfs
 clean-final-rootfs:
