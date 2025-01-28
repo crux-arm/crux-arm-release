@@ -759,7 +759,7 @@ $(RELEASE_TAR_FILE): $(STAGEFINAL_ROOTFS_TAR_FILE)
 	$(call DEBUG, Preparing release directory ($(RELEASE_WORK_DIR)))
 	$(MAKE) -e prepare-release-dir
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
-	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(STAGEFINAL_ROOTFS_TAR_FILE) | sed -e "s|/crux-arm-release.*/|../|g"` $(RELEASE_TAR_FILE)
+	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(STAGEFINAL_ROOTFS_TAR_FILE) | sed -e "s|.*/crux-arm-release.*/|../stagefinal/|g"` $(RELEASE_TAR_FILE)
 	$(call DEBUG, Release completed)
 
 .PHONY: clean-release
