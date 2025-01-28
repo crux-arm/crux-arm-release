@@ -65,10 +65,9 @@ SOURCES_DIR = $(WORKSPACE_DIR)/sources
 LOGS_DIR = $(WORKSPACE_DIR)/logs
 STAGE0_WORK_DIR = $(WORKSPACE_DIR)/stage0
 STAGE1_WORK_DIR = $(WORKSPACE_DIR)/stage1
-FINAL_WORK_DIR = $(WORKSPACE_DIR)/final
+STAGEFINAL_WORK_DIR = $(WORKSPACE_DIR)/stagefinal
 RELEASE_WORK_DIR = $(WORKSPACE_DIR)/release
-STAGE0_PORTS_FILE = $(STAGE0_WORK_DIR)/ports.list
-STAGE1_PORTS_FILE = $(STAGE1_WORK_DIR)/ports.list
+
 
 # This file exists to make possible continue building stage1 ports from a selected point
 STAGE1_PORTS_FILE_INDEX = $(STAGE1_WORK_DIR)/ports.list.index
@@ -94,6 +93,9 @@ BUILDTIME_PORTS = python3-setuptools ninja meson libuv lzlib rhash jsoncpp \
 # because it is included as a dependency of another port.
 PORTS_BLACKLIST = glibc-32 libxcrypt-32
 
+STAGE0_PORTS_FILE = $(STAGE0_WORK_DIR)/ports.list
+STAGE1_PORTS_FILE = $(STAGE1_WORK_DIR)/ports.list
+
 STAGE0_PKGMK_CONFIG_FILE = $(STAGE0_WORK_DIR)/pkgmk.conf
 STAGE1_PKGMK_CONFIG_FILE = $(STAGE1_WORK_DIR)/pkgmk.conf
 
@@ -108,14 +110,14 @@ STAGE1_PACKAGES_DONE_FILE = $(STAGE1_WORK_DIR)/packages.done
 
 STAGE0_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stage0
 STAGE1_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stage1
-FINAL_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-final
+STAGEFINAL_ROOTFS_DIR = $(WORKSPACE_DIR)/rootfs-stagefinal
 
 STAGE0_ROOTFS_TAR_FILE = $(STAGE0_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-stage0.tar.xz
-FINAL_ROOTFS_TAR_FILE = $(FINAL_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-final.tar.xz
+STAGEFINAL_ROOTFS_TAR_FILE = $(STAGEFINAL_WORK_DIR)/crux-arm-$(RELEASE_VERSION).rootfs-final.tar.xz
 
 STAGE0_LOG_FILE = $(LOGS_DIR)/stage0.log
 STAGE1_LOG_FILE = $(LOGS_DIR)/stage1.log
-FINAL_LOG_FILE = $(LOGS_DIR)/stage-final.log
+STAGEFINAL_LOG_FILE = $(LOGS_DIR)/stagefinal.log
 
 # Optimization based on devices
 DEVICE_OPTIMIZATION ?= $(CRUX_ARM_ARCH)
@@ -255,13 +257,15 @@ debug:
 .PHONY: prepare-dirs
 prepare-dirs: $(LOGS_DIR)
 $(LOGS_DIR):
+	$(call DEBUG, Creating $(SOURCES_DIR))
 	@mkdir -vp $(SOURCES_DIR)
+	$(call DEBUG, Creating $(LOGS_DIR))
 	@mkdir -vp $(LOGS_DIR)
 
 # Clones all COLLECTIONS of ports required to generate the release
 # Upstream ports from CRUX's core is frozen to a certain version: $(CRUX_GIT_HASH)
 .PHONY: prepare-ports-dir
-prepare-ports-dir: $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) prepare-dirs
+prepare-ports-dir: $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(LOGS_DIR)
 $(PORTS_DIR)/core:
 $(PORTS_DIR)/core-$(CRUX_ARM_ARCH):
 	$(call DEBUG, Getting sources for ports)
@@ -298,6 +302,7 @@ $(PORTS_DIR)/core-$(CRUX_ARM_ARCH):
 .PHONY: prepare-stage0-work-dir
 prepare-stage0-work-dir: $(STAGE0_WORK_DIR)
 $(STAGE0_WORK_DIR):
+	$(call DEBUG, Creating $(STAGE0_WORK_DIR))
 	@mkdir -vp $(STAGE0_WORK_DIR)
 
 # Generates pkgmk.conf
@@ -358,6 +363,7 @@ clean-stage0-ports-file:
 	@rm -f $(STAGE0_PORTS_FILE)
 
 $(STAGE0_PACKAGES_DIR):
+	$(call DEBUG, Creating $(STAGE0_PACKAGES_DIR))
 	@mkdir -vp $(STAGE0_PACKAGES_DIR)
 
 # Build each port from STAGE0_PORTS_FILE
@@ -365,7 +371,7 @@ $(STAGE0_PACKAGES_DIR):
 # Creates a backup file STAGE0_PACKAGES_TAR_FILE with all packages
 .PHONY: build-stage0-packages
 build-stage0-packages: $(STAGE0_PACKAGES_DONE_FILE)
-$(STAGE0_PACKAGES_DONE_FILE): $(STAGE0_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE0_PKGMK_CONFIG_FILE) $(STAGE0_PRTGET_CONFIG_FILE) $(STAGE0_PORTS_FILE)
+$(STAGE0_PACKAGES_DONE_FILE): $(STAGE0_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE0_PKGMK_CONFIG_FILE) $(STAGE0_PRTGET_CONFIG_FILE) $(STAGE0_PORTS_FILE) $(LOGS_DIR)
 	$(call DEBUG, Building stage0 packages from $(STAGE0_PORTS_FILE))
 	@for PORT in `cat $(STAGE0_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
@@ -398,36 +404,38 @@ $(STAGE0_ROOTFS_TAR_FILE): $(STAGE0_PACKAGES_DONE_FILE) $(STAGE0_PRTGET_CONFIG_F
 
 ## TODO: first copy the version of the current Pkgfile and always use the latest?
 .PHONY: fix-setuptools
-fix-setuptools: prepare-ports-dir
+fix-setuptools: $(LOGS_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 	$(call DEBUG, Copying ensurepip version of setuptools)
 	@cmp -s quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile; \
 	RETVAL=$$?; \
 	if [ $$RETVAL -eq 0 ]; then \
 		echo "No need to update $(PORTS_DIR)/core/python3-setuptools/Pkgfile"; \
 	else \
+		echo "Updating python3-setuptools/Pkgfile"; \
 		cp quirks/setuptools.in $(PORTS_DIR)/core/python3-setuptools/Pkgfile; \
 	fi
 
 .PHONY: fix-perl
-fix-perl: prepare-ports-dir
+fix-perl: $(LOGS_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 	$(call DEBUG, Copying perl Pkgfile with fixed mandir)
 	@cmp -s quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile; \
 	RETVAL=$$?; \
 	if [ $$RETVAL -eq 0 ]; then \
 		echo "No need to update $(PORTS_DIR)/core/perl/Pkgfile"; \
 	else \
-	cp quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile; \
+		echo "Updating perl/Pkgfile"; \
+		cp quirks/perl.in $(PORTS_DIR)/core/perl/Pkgfile; \
 	fi
 
 .PHONY: stage0
-stage0:
+stage0: $(LOGS_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 	$(call DEBUG, Applying Pkgfile fixes)
-	$(MAKE) -e fix-setuptools
-	$(MAKE) -e fix-perl
+	$(MAKE) -e fix-setuptools 2>&1 | tee $(STAGE0_LOG_FILE)
+	$(MAKE) -e fix-perl 2>&1 | tee -a $(STAGE0_LOG_FILE)
 	$(call DEBUG, Building Stage 0 packages)
-	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes
+	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes 2>&1 | tee -a $(STAGE0_LOG_FILE)
 	$(call DEBUG, Building Stage 0 rootfs)
-	$(MAKE) -e build-stage0-rootfs-file
+	$(MAKE) -e build-stage0-rootfs-file 2>&1 | tee -a $(STAGE0_LOG_FILE)
 
 .PHONY: clean-stage0
 clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-file
@@ -440,6 +448,7 @@ clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-
 .PHONY: prepare-stage1-work-dir
 prepare-stage1-work-dir: $(STAGE1_WORK_DIR)
 $(STAGE1_WORK_DIR):
+	$(call DEBUG, Creating $(STAGE1_WORK_DIR))
 	@mkdir -vp $(STAGE1_WORK_DIR)
 
 # Generates pkgmk.conf
@@ -506,6 +515,7 @@ clean-stage1-ports-file:
 	@rm -f $(STAGE1_PORTS_FILE)
 
 $(STAGE1_PACKAGES_DIR):
+	$(call DEBUG, Creating $(STAGE1_PACKAGES_DIR))
 	@mkdir -vp $(STAGE1_PACKAGES_DIR)
 
 .PHONY: download-stage1-sources
@@ -619,15 +629,15 @@ $(STAGE1_PACKAGES_DONE_FILE):
 .PHONY: stage1
 stage1:
 	$(call DEBUG, Downloading sources required to build stage1 packages)
-	$(MAKE) -e download-stage1-sources
+	$(MAKE) -e download-stage1-sources 2>&1 | tee $(STAGE1_LOG_FILE)
 	$(call DEBUG, Preparing chroot environment ($(STAGE1_ROOTFS_DIR)))
-	$(MAKE) -e prepare-stage1-rootfs-dir
+	$(MAKE) -e prepare-stage1-rootfs-dir 2>&1 | tee -a $(STAGE1_LOG_FILE)
 	$(call DEBUG, Mounting /dev on $(STAGE1_ROOTFS_DIR)/dev)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/dev || \
-		sudo mount --bind /dev $(STAGE1_ROOTFS_DIR)/dev
+		sudo mount --make-rprivate --bind /dev $(STAGE1_ROOTFS_DIR)/dev
 	$(call DEBUG, Mounting /proc on $(STAGE1_ROOTFS_DIR)/proc)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/proc || \
-		sudo mount --bind /proc $(STAGE1_ROOTFS_DIR)/proc
+		sudo mount --make-rprivate --bind /proc $(STAGE1_ROOTFS_DIR)/proc
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports || \
@@ -662,12 +672,12 @@ stage1:
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR), building stage1 packages)
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
-		make -e build-stage1-packages" 2>&1 | tee $(STAGE1_LOG_FILE) || exit 1
+		make -e build-stage1-packages" 2>&1 | tee -a $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Exiting chroot enrivonment)
 	$(call DEBUG, Preparing final stage rootfs)
-	$(MAKE) -e final-stage 2>&1 | tee $(FINAL_LOG_FILE) || exit 1
+	$(MAKE) -e final-stage 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Running Release)
-	$(MAKE) -e release
+	$(MAKE) -e release 2>&1 | tee -a $(STAGEFINAL_LOG_FILE)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
@@ -689,21 +699,23 @@ clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-
 #
 
 .PHONY: prepare-final-work-dir
-prepare-final-work-dir: $(FINAL_WORK_DIR)
-$(FINAL_WORK_DIR):
-	@mkdir -vp $(FINAL_WORK_DIR)
+prepare-final-work-dir: $(STAGEFINAL_WORK_DIR)
+$(STAGEFINAL_WORK_DIR):
+	$(call DEBUG, Creating $(STAGEFINAL_WORK_DIR))
+	@mkdir -vp $(STAGEFINAL_WORK_DIR)
 
 .PHONY: prepare-final-rootfs-dir
-prepare-final-rootfs-dir: $(FINAL_ROOTFS_DIR)
-$(FINAL_ROOTFS_DIR):
-	@sudo mkdir -vp $(FINAL_ROOTFS_DIR) || exit 1
+prepare-final-rootfs-dir: $(STAGEFINAL_ROOTFS_DIR)
+$(STAGEFINAL_ROOTFS_DIR):
+	$(call DEBUG, Creating $(STAGEFINAL_ROOTFS_DIR))
+	@sudo mkdir -vp $(STAGEFINAL_ROOTFS_DIR) || exit 1
 
 # Create a rootfs file with stage1 packages
 .PHONY: build-final-rootfs-file
-build-final-rootfs-file: $(FINAL_ROOTFS_TAR_FILE)
-$(FINAL_ROOTFS_TAR_FILE):
-	@sudo mkdir -vp $(FINAL_ROOTFS_DIR)/var/lib/pkg
-	@sudo touch $(FINAL_ROOTFS_DIR)/var/lib/pkg/db
+build-final-rootfs-file: $(STAGEFINAL_ROOTFS_TAR_FILE)
+$(STAGEFINAL_ROOTFS_TAR_FILE):
+	@sudo mkdir -vp $(STAGEFINAL_ROOTFS_DIR)/var/lib/pkg
+	@sudo touch $(STAGEFINAL_ROOTFS_DIR)/var/lib/pkg/db
 	@for PORT in `sed "s|$(BUILDTIME_PORTS)||" $(STAGE1_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		package_name=`grep '^name=' $$portdir/Pkgfile | sed 's/name=//'`; \
@@ -711,25 +723,25 @@ $(FINAL_ROOTFS_TAR_FILE):
 		package_release=`grep '^release=' $$portdir/Pkgfile | sed 's/release=//'`; \
 		package="$(STAGE1_PACKAGES_DIR)/$$package_name#$$package_version-$$package_release.pkg.tar.$(PKGMK_COMPRESSION_MODE)"; \
 		echo "Installing $$package"; \
-		sudo pkgadd -r $(FINAL_ROOTFS_DIR) $$package || exit 1; \
+		sudo pkgadd -r $(STAGEFINAL_ROOTFS_DIR) $$package || exit 1; \
 	done
-	$(call DEBUG, Creating $(FINAL_ROOTFS_TAR_FILE))
-	@cd $(FINAL_ROOTFS_DIR) && sudo tar cavf $(FINAL_ROOTFS_TAR_FILE) *
-	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(FINAL_ROOTFS_TAR_FILE)
-	@touch $(FINAL_ROOTFS_TAR_FILE)
+	$(call DEBUG, Creating $(STAGEFINAL_ROOTFS_TAR_FILE))
+	@cd $(STAGEFINAL_ROOTFS_DIR) && sudo tar cavf $(STAGEFINAL_ROOTFS_TAR_FILE) *
+	@sudo chown $(CURRENT_UID):$(CURRENT_GID) $(STAGEFINAL_ROOTFS_TAR_FILE)
+	@touch $(STAGEFINAL_ROOTFS_TAR_FILE)
 
 .PHONY: final-stage
 final-stage:
 	$(call DEBUG, Preparing final stage work directory)
-	$(MAKE) -e prepare-final-work-dir
+	$(MAKE) -e prepare-final-work-dir 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Preparing final stage rootfs directory)
-	$(MAKE) -e prepare-final-rootfs-dir
-	$(call DEBUG, Creating rootfs from stage1 packages: $(FINAL_ROOTFS_DIR))
-	$(MAKE) -e build-final-rootfs-file
+	$(MAKE) -e prepare-final-rootfs-dir 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
+	$(call DEBUG, Creating rootfs from stage1 packages: $(STAGEFINAL_ROOTFS_DIR))
+	$(MAKE) -e build-final-rootfs-file 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
 
 .PHONY: clean-final-rootfs
 clean-final-rootfs:
-	@rm $(FINAL_ROOTFS_TAR_FILE)
+	@rm $(STAGEFINAL_ROOTFS_TAR_FILE)
 
 #------------------------------------------------------------------------------
 # RELEASE
@@ -738,15 +750,16 @@ clean-final-rootfs:
 .PHONY: prepare-release-dir
 prepare-release-dir: $(RELEASE_WORK_DIR)
 $(RELEASE_WORK_DIR):
+	$(call DEBUG, Creating $(RELEASE_WORK_DIR))
 	@mkdir -vp $(RELEASE_WORK_DIR)
 
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
-$(RELEASE_TAR_FILE): $(FINAL_ROOTFS_TAR_FILE)
+$(RELEASE_TAR_FILE): $(STAGEFINAL_ROOTFS_TAR_FILE)
 	$(call DEBUG, Preparing release directory ($(RELEASE_WORK_DIR)))
 	$(MAKE) -e prepare-release-dir
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
-	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(FINAL_ROOTFS_TAR_FILE) | sed -e "s|/crux-arm-release|..|g"` $(RELEASE_TAR_FILE)
+	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(STAGEFINAL_ROOTFS_TAR_FILE) | sed -e "s|/crux-arm-release.*/|../|g"` $(RELEASE_TAR_FILE)
 	$(call DEBUG, Release completed)
 
 .PHONY: clean-release
@@ -761,7 +774,7 @@ clean-release:
 bootstrap:
 	$(call DEBUG, Bootstrap started)
 	$(call DEBUG, Running Stage 0)
-	$(MAKE) -e stage0 2>&1 | tee $(STAGE0_LOG_FILE)
+	$(MAKE) -e stage0
 	$(call DEBUG, Running Stage 1)
 	$(MAKE) -e stage1
 	$(call DEBUG, Bootstrap completed)
