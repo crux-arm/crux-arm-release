@@ -295,6 +295,7 @@ $(PORTS_DIR)/core-$(CRUX_ARM_ARCH):
 		fi \
 	done
 
+
 # -----------------------------------------------------------------------------
 # STAGE 0
 #
@@ -430,16 +431,17 @@ fix-perl: $(LOGS_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 .PHONY: stage0
 stage0: $(LOGS_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
 	$(call DEBUG, Applying Pkgfile fixes)
-	$(MAKE) -e fix-setuptools 2>&1 | tee $(STAGE0_LOG_FILE)
-	$(MAKE) -e fix-perl 2>&1 | tee -a $(STAGE0_LOG_FILE)
+	$(MAKE) -e fix-setuptools 2>&1 | tee $(STAGE0_LOG_FILE) || exit 1
+	$(MAKE) -e fix-perl 2>&1 | tee -a $(STAGE0_LOG_FILE) || exit 1
 	$(call DEBUG, Building Stage 0 packages)
-	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes 2>&1 | tee -a $(STAGE0_LOG_FILE)
+	$(MAKE) -e build-stage0-packages PKGMK_FAKEROOT=yes 2>&1 | tee -a $(STAGE0_LOG_FILE) || exit 1
 	$(call DEBUG, Building Stage 0 rootfs)
-	$(MAKE) -e build-stage0-rootfs-file 2>&1 | tee -a $(STAGE0_LOG_FILE)
+	$(MAKE) -e build-stage0-rootfs-file 2>&1 | tee -a $(STAGE0_LOG_FILE) || exit 1
 
 .PHONY: clean-stage0
 clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-file
 	@rm $(STAGE0_ROOTFS_TAR_FILE)
+
 
 #------------------------------------------------------------------------------
 # STAGE1
@@ -449,7 +451,7 @@ clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-
 prepare-stage1-work-dir: $(STAGE1_WORK_DIR)
 $(STAGE1_WORK_DIR):
 	$(call DEBUG, Creating $(STAGE1_WORK_DIR))
-	@mkdir -vp $(STAGE1_WORK_DIR)
+	@mkdir -vp $(STAGE1_WORK_DIR) || exit 1
 
 # Generates pkgmk.conf
 # NOTE: An absolute path is used for PKGMK_*_DIR, so it is convenient to regenerate
@@ -523,7 +525,7 @@ download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(ST
 	$(call DEBUG, Downloading port sources)
 	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE)) || exit 1; \
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE) || exit 1); \
 	done
 
 # Setup a valid rootfs directory to build stage1 packages
@@ -629,15 +631,15 @@ $(STAGE1_PACKAGES_DONE_FILE):
 .PHONY: stage1
 stage1:
 	$(call DEBUG, Downloading sources required to build stage1 packages)
-	$(MAKE) -e download-stage1-sources 2>&1 | tee $(STAGE1_LOG_FILE)
+	$(MAKE) -e download-stage1-sources 2>&1 | tee $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Preparing chroot environment ($(STAGE1_ROOTFS_DIR)))
-	$(MAKE) -e prepare-stage1-rootfs-dir 2>&1 | tee -a $(STAGE1_LOG_FILE)
+	$(MAKE) -e prepare-stage1-rootfs-dir 2>&1 | tee -a $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Mounting /dev on $(STAGE1_ROOTFS_DIR)/dev)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/dev || \
-		sudo mount --make-rprivate --bind /dev $(STAGE1_ROOTFS_DIR)/dev
+		sudo mount --bind /dev $(STAGE1_ROOTFS_DIR)/dev
 	$(call DEBUG, Mounting /proc on $(STAGE1_ROOTFS_DIR)/proc)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/proc || \
-		sudo mount --make-rprivate --bind /proc $(STAGE1_ROOTFS_DIR)/proc
+		sudo mount --bind /proc $(STAGE1_ROOTFS_DIR)/proc
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports)
 	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports || \
@@ -668,7 +670,7 @@ stage1:
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR), fixing faulty packages)
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
-		make -e fix-problem-packages" || exit 1
+		make -e fix-problem-packages" 2>&1 | tee -a $(STAGE1_LOG_FILE) || exit 1
 	$(call DEBUG, Entering chroot environment $(STAGE1_ROOTFS_DIR), building stage1 packages)
 	@sudo chroot $(STAGE1_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
@@ -677,7 +679,9 @@ stage1:
 	$(call DEBUG, Preparing final stage rootfs)
 	$(MAKE) -e final-stage 2>&1 | tee $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Running Release)
-	$(MAKE) -e release 2>&1 | tee -a $(STAGEFINAL_LOG_FILE)
+	$(MAKE) -e release 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
+	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0)
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
 	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
@@ -702,7 +706,7 @@ clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-
 prepare-final-work-dir: $(STAGEFINAL_WORK_DIR)
 $(STAGEFINAL_WORK_DIR):
 	$(call DEBUG, Creating $(STAGEFINAL_WORK_DIR))
-	@mkdir -vp $(STAGEFINAL_WORK_DIR)
+	@mkdir -vp $(STAGEFINAL_WORK_DIR) || exit 1
 
 .PHONY: prepare-final-rootfs-dir
 prepare-final-rootfs-dir: $(STAGEFINAL_ROOTFS_DIR)
@@ -732,9 +736,9 @@ $(STAGEFINAL_ROOTFS_TAR_FILE):
 
 .PHONY: final-stage
 final-stage:
-	$(call DEBUG, Preparing final stage work directory)
+	$(call DEBUG, Preparing final stage work directory $(STAGEFINAL_WORK_DIR))
 	$(MAKE) -e prepare-final-work-dir 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
-	$(call DEBUG, Preparing final stage rootfs directory)
+	$(call DEBUG, Preparing final stage rootfs directory $(STAGEFINAL_ROOTFS_DIR))
 	$(MAKE) -e prepare-final-rootfs-dir 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
 	$(call DEBUG, Creating rootfs from stage1 packages: $(STAGEFINAL_ROOTFS_DIR))
 	$(MAKE) -e build-final-rootfs-file 2>&1 | tee -a $(STAGEFINAL_LOG_FILE) || exit 1
@@ -742,6 +746,7 @@ final-stage:
 .PHONY: clean-final-rootfs
 clean-final-rootfs:
 	@rm $(STAGEFINAL_ROOTFS_TAR_FILE)
+
 
 #------------------------------------------------------------------------------
 # RELEASE
@@ -751,7 +756,7 @@ clean-final-rootfs:
 prepare-release-dir: $(RELEASE_WORK_DIR)
 $(RELEASE_WORK_DIR):
 	$(call DEBUG, Creating $(RELEASE_WORK_DIR))
-	@mkdir -vp $(RELEASE_WORK_DIR)
+	@mkdir -vp $(RELEASE_WORK_DIR) || exit 1
 
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
@@ -765,6 +770,7 @@ $(RELEASE_TAR_FILE): $(STAGEFINAL_ROOTFS_TAR_FILE)
 .PHONY: clean-release
 clean-release:
 	@rm $(RELEASE_TAR_FILE)
+
 
 #------------------------------------------------------------------------------
 # BOOSTRAP
