@@ -374,7 +374,7 @@ $(STAGE0_PACKAGES_DIR):
 build-stage0-packages: $(STAGE0_PACKAGES_DONE_FILE)
 $(STAGE0_PACKAGES_DONE_FILE): $(STAGE0_PACKAGES_DIR) $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE0_PKGMK_CONFIG_FILE) $(STAGE0_PRTGET_CONFIG_FILE) $(STAGE0_PORTS_FILE) $(LOGS_DIR)
 	$(call DEBUG, Building stage0 packages from $(STAGE0_PORTS_FILE))
-	@for PORT in `cat $(STAGE0_PORTS_FILE)`; do \
+	@set -e; for PORT in `cat $(STAGE0_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE0_PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		( cd $$portdir && $(PKGMK_CMD) -d -cf $(STAGE0_PKGMK_CONFIG_FILE) $(PKGMK_CMD_OPTS) ) || exit 1; \
 	done
@@ -523,7 +523,7 @@ $(STAGE1_PACKAGES_DIR):
 .PHONY: download-stage1-sources
 download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(STAGE1_PRTGET_CONFIG_FILE) $(STAGE1_PORTS_FILE)
 	$(call DEBUG, Downloading port sources)
-	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
+	@set -e; for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
 		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE) || exit 1); \
 	done
@@ -762,7 +762,7 @@ $(RELEASE_WORK_DIR):
 release: $(RELEASE_TAR_FILE)
 $(RELEASE_TAR_FILE): $(STAGEFINAL_ROOTFS_TAR_FILE)
 	$(call DEBUG, Preparing release directory ($(RELEASE_WORK_DIR)))
-	$(MAKE) -e prepare-release-dir
+	$(MAKE) -e prepare-release-dir || exit 1
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
 	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(STAGEFINAL_ROOTFS_TAR_FILE) | sed -e "s|.*/crux-arm-release.*/|../stagefinal/|g"` $(RELEASE_TAR_FILE)
 	$(call DEBUG, Release completed)
@@ -780,7 +780,7 @@ clean-release:
 bootstrap:
 	$(call DEBUG, Bootstrap started)
 	$(call DEBUG, Running Stage 0)
-	$(MAKE) -e stage0
+	$(MAKE) -e stage0 || exit 1
 	$(call DEBUG, Running Stage 1)
-	$(MAKE) -e stage1
+	$(MAKE) -e stage1 || exit 1
 	$(call DEBUG, Bootstrap completed)
