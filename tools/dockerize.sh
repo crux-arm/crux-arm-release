@@ -36,7 +36,7 @@ esac
 WORKSPACE_DIR="/crux-arm-release"
 
 # Docker builder image and platform
-DOCKER_IMAGE=${DOCKER_IMAGE:-sepen/crux:3.7-arm64-builder}
+DOCKER_IMAGE=${DOCKER_IMAGE:-docker.io/sepen/crux:3.7-arm64-builder}
 DOCKER_PLATFORM=${DOCKER_PLATFORM:-linux/arm64}
 
 # Run the docker command and bind some directories
