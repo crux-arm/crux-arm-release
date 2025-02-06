@@ -24,7 +24,7 @@ BASE_DIR=$(cd "${TOOLS_DIR}"/../ && pwd)
 WORKSPACE_DIR="/crux-arm-release"
 
 # Docker builder image and platform
-DOCKER_IMAGE=${DOCKER_IMAGE:-sepen/crux:3.7-updated-arm64-builder}
+DOCKER_IMAGE=${DOCKER_IMAGE:-docker.io/sepen/crux:3.7-updated-arm64-builder}
 DOCKER_PLATFORM=${DOCKER_PLATFORM:-linux/arm64}
 
 # Detect the host system and fix the necessary requirements if needed
@@ -44,6 +44,7 @@ case "${HOST_OS}" in
     "debug"|"shell")
       docker run --init --privileged --rm -it \
         --platform "${DOCKER_PLATFORM}" \
+        -e "DEVICE_OPTIMIZATION"="${DEVICE_OPTIMIZATION:-arm64}" \
         -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
         -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
         -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
@@ -59,6 +60,7 @@ case "${HOST_OS}" in
     *)
       docker run --init --privileged --rm \
         --platform "${DOCKER_PLATFORM}" \
+        -e "DEVICE_OPTIMIZATION"="${DEVICE_OPTIMIZATION:-arm64}" \
         -v "${BASE_DIR}/Makefile":${WORKSPACE_DIR}/Makefile \
         -v "${BASE_DIR}/devices":${WORKSPACE_DIR}/devices \
         -v "${BASE_DIR}/ports":${WORKSPACE_DIR}/ports \
@@ -91,12 +93,14 @@ case "${HOST_OS}" in
     "debug"|"shell")
       docker run --privileged --rm -it \
         --platform "${DOCKER_PLATFORM}" \
+        -e "DEVICE_OPTIMIZATION"="${DEVICE_OPTIMIZATION:-arm64}" \
         -v "${BASE_DIR}":${WORKSPACE_DIR} \
         "${DOCKER_IMAGE}" bash
     ;;
     *)
       docker run --privileged --rm -it \
         --platform "${DOCKER_PLATFORM}" \
+        -e "DEVICE_OPTIMIZATION"="${DEVICE_OPTIMIZATION:-arm64}" \
         -v "${BASE_DIR}":${WORKSPACE_DIR} \
         "${DOCKER_IMAGE}" bash -x -c "
 
