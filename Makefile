@@ -533,8 +533,7 @@ download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(ST
 	$(call DEBUG, Downloading port sources)
 	@set -e; for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
 		portdir=`$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) path "$$PORT"`; \
-		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE)); \
-		@test -f $(SOURCES_DIR)/$(PORT)*
+		( cd $$portdir && $(PKGMK_CMD) -do -cf $(STAGE1_PKGMK_CONFIG_FILE)) || { echo "Error: $(PKGMK_CMD) failed for port $$PORT" >&2; exit 1; }; \
 	done
 
 # Setup a valid rootfs directory to build stage1 packages
@@ -542,8 +541,9 @@ download-stage1-sources: $(STAGE1_PACKAGES_DIR) $(STAGE1_PKGMK_CONFIG_FILE) $(ST
 prepare-stage1-rootfs-dir: $(STAGE1_ROOTFS_DIR)
 $(STAGE1_ROOTFS_DIR):
 	$(call DEBUG, Creating $(STAGE1_ROOTFS_DIR))
-	@test -d $(STAGE1_ROOTFS_DIR)
+	@test ! -d $(STAGE1_ROOTFS_DIR)
 	@sudo mkdir -vp $(STAGE1_ROOTFS_DIR)
+	@test -d $(STAGE1_ROOTFS_DIR)
 	$(call DEBUG, Decompressing $(STAGE0_ROOTFS_TAR_FILE) to $(STAGE1_ROOTFS_DIR))
 	@sudo tar -C $(STAGE1_ROOTFS_DIR) -xvf $(STAGE0_ROOTFS_TAR_FILE)
 	$(call DEBUG, Installing extras)
@@ -613,11 +613,7 @@ fix-problem-packages:
 build-stage1-packages: $(STAGE1_PACKAGES_DONE_FILE)
 $(STAGE1_PACKAGES_DONE_FILE):
 	$(call DEBUG, Checking for a valid chroot environment)
-	# TODO: Do we need this if?
-	@if [ ! -f /chroot ]; then \
-		echo "$(RED)Error: You are not inside chroot environment$(RESET))"; \
-		@test -f /chroot
-	fi
+	@test -f /chroot
 	$(call DEBUG, Building stage1 packages from $(STAGE1_PORTS_FILE))
 	@for PORT in `cat $(STAGE1_PORTS_FILE)`; do \
 		if [ "$$PORT" = "python3-setuptools" ]; then \
