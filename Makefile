@@ -101,6 +101,7 @@ STAGE1_PKGMK_CONFIG_FILE = $(STAGE1_WORK_DIR)/pkgmk.conf
 
 STAGE0_PRTGET_CONFIG_FILE = $(STAGE0_WORK_DIR)/prt-get.conf
 STAGE1_PRTGET_CONFIG_FILE = $(STAGE1_WORK_DIR)/prt-get.conf
+STAGE1_PRTGET_CONFIG_COL_FILE = $(STAGE1_WORK_DIR)/prt-get-core.conf
 
 STAGE0_PACKAGES_DIR = $(STAGE0_WORK_DIR)/packages
 STAGE1_PACKAGES_DIR = $(STAGE1_WORK_DIR)/packages
@@ -232,6 +233,13 @@ debug:
 		cat "$(STAGE1_PRTGET_CONFIG_FILE)"; \
 	else \
 		echo "File $(STAGE1_PRTGET_CONFIG_FILE) does not exist."; \
+	fi
+	$(call DEBUG, Debugging stage1 prt-get-core.conf)
+	@if [ -f "$(STAGE1_PRTGET_CONFIG_COL_FILE)" ]; then \
+		echo "Contents of $(STAGE1_PRTGET_CONFIG_COL_FILE):"; \
+		cat "$(STAGE1_PRTGET_CONFIG_COL_FILE)"; \
+	else \
+		echo "File $(STAGE1_PRTGET_CONFIG_COL_FILE) does not exist."; \
 	fi
 	$(call DEBUG, Debugging stage0 ports.list)
 	@if [ -f "$(STAGE0_PORTS_FILE)" ]; then \
@@ -506,17 +514,31 @@ $(STAGE1_PRTGET_CONFIG_FILE): clean-stage1-prtgetconf $(PORTS_DIR)/core $(PORTS_
 clean-stage1-prtgetconf:
 	@rm -f $(STAGE1_PRTGET_CONFIG_FILE)
 
+# Create a temporal prt-get.conf file used to get only ports from core/core-arm* collections
+# We don't want to build ports not in core from overlayed repository
+.PHONY: prepare-stage1-prtgetconf-col
+prepare-stage1-prtgetconf-col: $(STAGE1_PRTGET_CONFIG_COL_FILE)
+$(STAGE1_PRTGET_CONFIG_COL_FILE): clean-stage1-prtgetconf-col $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH)
+	$(call DEBUG, Preparing file $(STAGE1_PRTGET_CONFIG_COL_FILE) for core collections)
+	@for COLL in `echo $(COLLECTIONS) | grep -oP '(?>core).*'`; do \
+		echo "prtdir $(PORTS_DIR)/$$COLL" >> $(STAGE1_PRTGET_CONFIG_COL_FILE); \
+	done
+
+.PHONY: clean-stage1-prtgetconf-col
+clean-stage1-prtgetconf-col:
+	@rm -f $(STAGE1_PRTGET_CONFIG_COL_FILE)
+
 # Generates a list of ports required to create the stage1
 .PHONY: prepare-stage1-ports-file
 prepare-stage1-ports-file: $(STAGE1_PORTS_FILE)
-$(STAGE1_PORTS_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE1_PRTGET_CONFIG_FILE)
+$(STAGE1_PORTS_FILE): $(PORTS_DIR)/core $(PORTS_DIR)/core-$(CRUX_ARM_ARCH) $(STAGE1_PRTGET_CONFIG_COL_FILE) $(STAGE1_PRTGET_CONFIG_FILE)
 	$(call DEBUG, Preparing $(STAGE1_PORTS_FILE))
-	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) list > $(STAGE1_PORTS_FILE).tmp-multi-line 2>/dev/null
+	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_COL_FILE) list > $(STAGE1_PORTS_FILE).tmp-multi-line 2>/dev/null
 	@for bl in $(PORTS_BLACKLIST); do \
 		sed "/^$$bl/d" -i $(STAGE1_PORTS_FILE).tmp-multi-line; \
 	done
 	@tr '\n' ' ' < $(STAGE1_PORTS_FILE).tmp-multi-line > $(STAGE1_PORTS_FILE).tmp-one-line
-	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp-one-line` > $(STAGE1_PORTS_FILE)
+	@$(PRTGET_CMD) --config=$(STAGE1_PRTGET_CONFIG_COL_FILE) quickdep `cat $(STAGE1_PORTS_FILE).tmp-one-line` > $(STAGE1_PORTS_FILE)
 	@sed "s|^|$(BUILDTIME_PORTS) |" -i $(STAGE1_PORTS_FILE)
 	@rm -f $(STAGE1_PORTS_FILE).tmp*
 
