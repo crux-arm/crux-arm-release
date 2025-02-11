@@ -661,7 +661,7 @@ $(STAGE1_PACKAGES_DONE_FILE):
 stage1:
 	$(call DEBUG, Downloading sources required to build stage1 packages)
 	$(MAKE) -e download-stage1-sources 2>&1 | tee $(STAGE1_LOG_FILE)
-	$(call DEBUG, Preparing chroot environment ($(STAGE1_ROOTFS_DIR)))
+	$(call DEBUG, Preparing chroot environment $(STAGE1_ROOTFS_DIR))
 	$(MAKE) -e prepare-stage1-rootfs-dir 2>&1 | tee -a $(STAGE1_LOG_FILE)
 	$(call DEBUG, Mounting /dev on $(STAGE1_ROOTFS_DIR)/dev)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/dev || \
@@ -793,7 +793,7 @@ $(RELEASE_WORK_DIR):
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
 $(RELEASE_TAR_FILE): $(STAGEFINAL_ROOTFS_TAR_FILE)
-	$(call DEBUG, Preparing release directory ($(RELEASE_WORK_DIR)))
+	$(call DEBUG, Preparing release directory $(RELEASE_WORK_DIR))
 	$(MAKE) -e prepare-release-dir
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
 	@cd $(RELEASE_WORK_DIR) && ln -sv `echo $(STAGEFINAL_ROOTFS_TAR_FILE) | sed -e "s|.*/crux-arm-release.*/|../stagefinal/|g"` $(RELEASE_TAR_FILE)
