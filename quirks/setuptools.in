@@ -1,0 +1,22 @@
+# Description: Easily download, build, install, upgrade, and uninstall Python packages
+# URL: https://pypi.python.org/pypi/setuptools
+# Maintainer: CRUX System Team, core-ports at crux dot nu
+# Depends on: python3
+
+name=python3-setuptools
+version=75.8.0
+release=1
+source=(https://files.pythonhosted.org/packages/source/${name:8:1}/${name#*-}/${name#*-}-$version.tar.gz)
+
+build() {
+    cd ${name#*-}-$version
+
+    export SETUPTOOLS_INSTALL_WINDOWS_SPECIFIC_FILES=0
+    _pyver=$(/usr/bin/python3 -c 'import sys; print("%s.%s" % sys.version_info[:2])')
+
+    mkdir $SRC/temp
+    export PYTHONPATH="$SRC/temp/usr/lib/python$_pyver/site-packages"
+
+    /usr/bin/python3 -m ensurepip --root $SRC/temp
+    $SRC/temp/usr/bin/pip3 install --isolate --root=$PKG --ignore-installed --no-deps setuptools==$version
+}
