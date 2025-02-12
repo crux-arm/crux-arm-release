@@ -729,7 +729,6 @@ stage1:
 
 .PHONY: clean-stage1
 clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-file
-	@rm $(STAGE1_ROOTFS_TAR_FILE)
 
 
 #------------------------------------------------------------------------------
