@@ -120,13 +120,13 @@ Run `make help` to see all available Makefile options and commands.
 
 ## Customizing the Build
 
-You can customize the build by specifying a different optimized device. The default value for **OPTIMIZED_DEVICE** is `arm64`.
+You can customize the build by specifying a different optimized device. The default value for **DEVICE_OPTIMIZATION** is `arm64`.
 
 To see the list of other supported optimizations, browse the [devices](devices/) folder in this repository. Each `*.mk` file corresponds to a specific ARM device optimization, and you can select the one that matches your target hardware (or contribute a new one).
 
 Example Build for another device optimization (e.g., raspberrypi4)
 ```bash
-make bootstrap OPTIMIZED_DEVICE=raspberrypi4
+make bootstrap DEVICE_OPTIMIZATION=raspberrypi4
 ```
 
 This will build the release with the optimizations specified for the chosen device.
