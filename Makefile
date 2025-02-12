@@ -461,6 +461,11 @@ clean-stage0: clean-stage0-pkgmkconf clean-stage0-prtgetconf clean-stage0-ports-
 #------------------------------------------------------------------------------
 # STAGE1
 #
+# CAVEAT: Stage1 currently builds stagefinal and release due to a docker transport problem when unmounting directories.
+# To avoid a build break and do it from start to finish (bootstrap), stage1 will build stagefinal and release on its targets.
+# When we run a dockerized build, we'll need to restart docker-desktop on macOS after unmounting directories.
+# TODO: Look for a valid way to manage mounts/umounts that doesn't brean docker transport
+
 
 .PHONY: prepare-stage1-work-dir
 prepare-stage1-work-dir: $(STAGE1_WORK_DIR)
