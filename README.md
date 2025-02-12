@@ -93,7 +93,7 @@ git checkout <branch> # e.g. 3.8
 ```
 
 ### Set Up Environment
-Depending on your target architecture, you can specify the device optimization during the build by setting the **OPTIMIZED_DEVICE** variable. By default, this is set to **arm64**.
+Depending on your target architecture, you can specify the device optimization during the build by setting the **DEVICE_OPTIMIZATION** variable. By default, this is set to **arm64**.
 
 ### Bootstrap Process
 Run the Makefile to start the bootstrap process:
