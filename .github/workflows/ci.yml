@@ -24,7 +24,7 @@ jobs:
         run: make bootstrap
 
       - name: Share rootfs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: crux-arm-rootfs
           path: ./stagefinal/*.tar.xz
