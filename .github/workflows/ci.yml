@@ -1,0 +1,31 @@
+name: Build and Bootstrap
+
+on:
+  push: {}
+
+jobs:
+  bootstrap:
+    runs-on: crux
+    steps:
+      - name: Verify sudo works
+        run: sudo -n true && echo "All cool over here! ❄️"|| (echo "Help! Fire!! 🔥" && exit 1)
+
+      - name: Cache source directory
+        uses: actions/cache@v3
+        with:
+          path: ./source
+          key: source-${{ github.run_id }}
+          restore-keys: source-
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run make bootstrap
+        run: make bootstrap
+
+      - name: Share rootfs
+        uses: actions/upload-artifact@v3
+        with:
+          name: crux-arm-rootfs
+          path: ./stagefinal/*.tar.xz
+          retention-days: 7
