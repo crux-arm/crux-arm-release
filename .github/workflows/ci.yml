@@ -5,10 +5,10 @@ on:
 
 jobs:
   bootstrap:
-    runs-on: crux
+    runs-on: crux-arm
     steps:
       - name: Verify sudo works
-        run: sudo -n true && echo "All cool over here! ❄️"|| (echo "Help! Fire!! 🔥" && exit 1)
+        run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
 
       - name: Cache source directory
         uses: actions/cache@v3
