@@ -5,7 +5,7 @@ on:
 
 jobs:
   bootstrap:
-    runs-on: crux-arm
+    runs-on: self-hosted
     steps:
       - name: Verify sudo works
         run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
