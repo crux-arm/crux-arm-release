@@ -29,7 +29,7 @@ jobs:
 
       - name: Share rootfs
         id: share-rootfs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: crux-rootfs
           path: ./stagefinal/*.tar.xz
