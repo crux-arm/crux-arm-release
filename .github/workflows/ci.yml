@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Verify sudo works
         id: test-sudo
-        run: sudo -n true && echo "All cool over here! ❄️"|| (echo "Help! Fire!! 🔥" && exit 1)
+        run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
 
       - name: Checkout Repository
         id: checkout-repository
