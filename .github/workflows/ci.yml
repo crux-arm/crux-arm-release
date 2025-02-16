@@ -20,8 +20,7 @@ jobs:
         id: load-sources
         uses: actions/cache/restore@v4
         with:
-        path: |
-          sources
+        path: sources
         key: ${{ runner.os }}-${{ hashFiles('**/*.tar.*') }}
       - name: Run make bootstrap
         id: make-bootstrap
@@ -37,6 +36,5 @@ jobs:
         id: save-sources
         uses: actions/cache/save@v4
         with:
-        path: |
-          sources
+        path: sources
         key: ${{ steps.load-sources.outputs.cache-primary-key }}
