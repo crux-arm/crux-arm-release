@@ -9,34 +9,34 @@ jobs:
     container:
       image: carm-3.7-github-runner:lastest
       options: --cpus 8
-  steps:
-    - name: Verify sudo works
-      id: test-sudo
-      run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
-    - name: Checkout Repository
-      id: checkout-repository
-      uses: actions/checkout@v3
-    - name: Cache sources directory
-      id: load-sources
-      uses: actions/cache/restore@v4
-      with:
-      path: |
-        sources
-      key: ${{ runner.os }}-${{ hashFiles('**/*.tar.*') }}
-    - name: Run make bootstrap
-      id: make-bootstrap
-      run: make bootstrap
-    - name: Share rootfs
-      id: share-rootfs
-      uses: actions/upload-artifact@v4
-      with:
-      name: crux-rootfs
-      path: ./stagefinal/*.tar.xz
-      retention-days: 7
-    - name: Save sources to cache
-      id: save-sources
-      uses: actions/cache/save@v4
-      with:
-      path: |
-        sources
-      key: ${{ steps.load-sources.outputs.cache-primary-key }}
+    steps:
+      - name: Verify sudo works
+       id: test-sudo
+       run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
+      - name: Checkout Repository
+       id: checkout-repository
+       uses: actions/checkout@v3
+      - name: Cache sources directory
+       id: load-sources
+       uses: actions/cache/restore@v4
+       with:
+       path: |
+          sources
+        key: ${{ runner.os }}-${{ hashFiles('**/*.tar.*') }}
+      - name: Run make bootstrap
+        id: make-bootstrap
+        run: make bootstrap
+      - name: Share rootfs
+        id: share-rootfs
+        uses: actions/upload-artifact@v4
+        with:
+        name: crux-rootfs
+        path: ./stagefinal/*.tar.xz
+        retention-days: 7
+      - name: Save sources to cache
+        id: save-sources
+        uses: actions/cache/save@v4
+        with:
+        path: |
+          sources
+        key: ${{ steps.load-sources.outputs.cache-primary-key }}
