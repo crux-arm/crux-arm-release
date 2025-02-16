@@ -1,3 +1,16 @@
+    runs-on: ubuntu-latest
+    container:
+      image: node:18
+      env:
+        NODE_ENV: development
+      ports:
+        - 80
+      volumes:
+        - my_docker_volume:/volume_mount
+      options: --cpus 1
+      
+      
+      
 name: Build and Bootstrap
 
 on:
@@ -6,7 +19,10 @@ on:
 jobs:
   bootstrap:
     runs-on: self-hosted
-    steps:
+	container:
+		image: carm-3.7-github-runner:lastest
+		options: --cpus 8
+	steps:
       - name: Verify sudo works
         id: test-sudo
         run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
