@@ -6,9 +6,9 @@ on:
 jobs:
   bootstrap:
     runs-on: self-hosted
-	container:
-		image: carm-3.7-github-runner:lastest
-		options: --cpus 8
+    container:
+      image: carm-3.7-github-runner:lastest
+      options: --cpus 8
     steps:
       - name: Verify sudo works
         id: test-sudo
@@ -45,3 +45,4 @@ jobs:
           path: |
             sources
           key: ${{ steps.load-sources.outputs.cache-primary-key }}
+
