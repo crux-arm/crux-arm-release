@@ -7,7 +7,7 @@ jobs:
   bootstrap:
     runs-on: self-hosted
     container:
-      image: carm-3.7-github-runner:lastest
+      image: carm-3.7-github-runner:latest
       options: --cpus 8
     steps:
       - name: Verify sudo works
