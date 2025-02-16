@@ -189,8 +189,8 @@ help:
 .PHONY: clean
 clean: clean-stage0 clean-stage1
 
-.PHONY: debug
-debug:
+.PHONY: debugenv
+debugenv:
 	$(call DEBUG, Debugging Environment variables)
 	@env | grep \
 		-e ^CRUX_ARM_ARCH \
@@ -674,24 +674,24 @@ stage1:
 	$(call DEBUG, Mounting /proc on $(STAGE1_ROOTFS_DIR)/proc)
 	@mountpoint -q $(STAGE1_ROOTFS_DIR)/proc || \
 		sudo mount --bind /proc $(STAGE1_ROOTFS_DIR)/proc
-	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports)
-	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
-	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports || \
-		sudo mount --bind $(WORKSPACE_DIR)/ports $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
-	$(call DEBUG, Mounting $(WORKSPACE_DIR)/sources on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources)
-	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
-	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources || \
-		sudo mount --bind $(WORKSPACE_DIR)/sources $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
-	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage0 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0)
-	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
-	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0 || \
-		sudo mount --bind $(WORKSPACE_DIR)/stage0 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
-	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage1 on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1)
-	@mkdir -p $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
-	@mountpoint -q $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1 || \
-		sudo mount --bind $(WORKSPACE_DIR)/stage1 $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
-	$(call DEBUG, Copying $(WORKSPACE_DIR)/Makefile on $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile)
-	@cp $(WORKSPACE_DIR)/Makefile $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/Makefile
+	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports)
+	@mkdir -p $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports
+	@mountpoint -q $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports || \
+		cd $(WORKSPACE_DIR) && sudo mount --bind ports $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports
+	$(call DEBUG, Mounting $(WORKSPACE_DIR)/sources on $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
+	@mkdir -p $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources
+	@mountpoint -q $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources || \
+		cd $(WORKSPACE_DIR) && sudo mount --bind sources $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources
+	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage0 on $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0)
+	@mkdir -p $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0
+	@mountpoint -q $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0 || \
+		cd $(WORKSPACE_DIR) && sudo mount --bind stage0 $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0
+	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage1 on $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
+	@mkdir -p $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1
+	@mountpoint -q $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1 || \
+		cd $(WORKSPACE_DIR) && sudo mount --bind stage1 $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1
+	$(call DEBUG, Copying $(WORKSPACE_DIR)/Makefile on $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/Makefile)
+	@cp $(WORKSPACE_DIR)/Makefile $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/Makefile
 	$(call DEBUG, Setting up chroot environment $(STAGE1_ROOTFS_DIR))
 	@env | grep \
 		-e ^CRUX_ARM_ARCH \
@@ -714,18 +714,20 @@ stage1:
 	$(MAKE) -e final-stage 2>&1 | tee $(STAGEFINAL_LOG_FILE)
 	$(call DEBUG, Running Release)
 	$(MAKE) -e release 2>&1 | tee -a $(STAGEFINAL_LOG_FILE)
+	$(call DEBUG, Flushing filesystem buffers)
+	@sync
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage0
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0 || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/stage1
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1 || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/sources
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/$(WORKSPACE_DIR)/ports
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)$(WORKSPACE_DIR)/ports)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/proc)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/proc
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)/proc || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)/proc)
 	$(call DEBUG, Unmounting $(STAGE1_ROOTFS_DIR)/dev)
-	@sudo umount -f $(STAGE1_ROOTFS_DIR)/dev
+	@sudo umount -f $(STAGE1_ROOTFS_DIR)/dev || (sleep 2 && sudo umount -lf $(STAGE1_ROOTFS_DIR)/dev)
 
 .PHONY: clean-stage1
 clean-stage1: clean-stage1-pkgmkconf clean-stage1-prtgetconf clean-stage1-ports-file
