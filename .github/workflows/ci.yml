@@ -11,16 +11,16 @@ jobs:
       options: --cpus 8
     steps:
       - name: Verify sudo works
-       id: test-sudo
-       run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
+        id: test-sudo
+        run: sudo -n true && echo "All cool over here!" || (echo "Help! Fire!!" && exit 1)
       - name: Checkout Repository
-       id: checkout-repository
-       uses: actions/checkout@v3
+        id: checkout-repository
+        uses: actions/checkout@v3
       - name: Cache sources directory
-       id: load-sources
-       uses: actions/cache/restore@v4
-       with:
-       path: |
+        id: load-sources
+        uses: actions/cache/restore@v4
+        with:
+        path: |
           sources
         key: ${{ runner.os }}-${{ hashFiles('**/*.tar.*') }}
       - name: Run make bootstrap
