@@ -56,7 +56,7 @@ To build the CRUX-ARM release, there are two approaches: Native and Dockerized.
 - Alternatively, you can use Arch or Debian for ARM (or similar distributions). In this case, ensure that the basic tools `make`, `gcc`, `git`, `xz`, and necessary development headers and libraries are installed.
 
 ### Dockerized
-- You can build the CRUX-ARM release on CRUX Linux for `x86_64` or even on other Linux distributions or macOS capable of running multi-arch Docker containers.
+- You can build the CRUX-ARM release on CRUX Linux for `x86_64` or even on other Linux distributions or macOS capable of running multi-arch Docker containers using VirtioFS driver for file sharing.
 - The `tools/dockerize.sh` script will handle the process inside a Docker container, abstracting the need for a native ARM environment. For example, to run the bootstrap it would be something like:
     ```bash
     tools/dockerize.sh bootstrap
@@ -141,11 +141,12 @@ The following directories are involved in the build process:
 - **`packages`**: Directory where the different built packages will be stored.
 - **`sources`**:: Contains sources used in ports to build packages.
 - **`work`**: Contains temporary files and pkgmk's work directory.
-- **`rootfs-stage0`**: Contains the initial bootstrap environment and packages from **Stage 0**.
-- **`rootfs-stage1`**: Contains the packages and configurations created during **Stage 1**.
+- **`stage0`**: Used for the initial bootstrap environment and packages from **Stage 0**.
+- **`stage1`**: Contains packages and configurations created during **Stage 1**.
+- **`release`**: Contains the release file (a link to stage1 roofs created during **Stage 1**.
 - **`tools`**: Directory with some useful scripts.
 
-Both `rootfs-stage0` and `rootfs-stage1` are created during the build process (usually executed via make). These stages are progressively populated with files and utilities to prepare the root filesystem.
+Both `stage0` and `stage1` are created during the build process (usually executed via make). These stages are progressively populated with files and utilities to prepare the root filesystem.
 
 ## Root Filesystem Stages: `rootfs-stage0` vs. `rootfs-stage1`
 
