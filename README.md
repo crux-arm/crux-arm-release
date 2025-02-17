@@ -143,7 +143,7 @@ The following directories are involved in the build process:
 - **`work`**: Contains temporary files and pkgmk's work directory.
 - **`stage0`**: Used for the initial bootstrap environment and packages from **Stage 0**.
 - **`stage1`**: Contains packages and configurations created during **Stage 1**.
-- **`release`**: Contains the release file (a link to stage1 roofs created during **Stage 1**.
+- **`release`**: Contains the release file (a link to stage1 roofs created during **Stage 1**).
 - **`tools`**: Directory with some useful scripts.
 
 Both `stage0` and `stage1` are created during the build process (usually executed via make). These stages are progressively populated with files and utilities to prepare the root filesystem.
