@@ -52,7 +52,6 @@ case "${HOST_OS}" in
         -v "${BASE_DIR}/logs":${WORKSPACE_DIR}/logs \
         -v "${BASE_DIR}/stage0":${WORKSPACE_DIR}/stage0 \
         -v "${BASE_DIR}/stage1":${WORKSPACE_DIR}/stage1 \
-        -v "${BASE_DIR}/stagefinal":${WORKSPACE_DIR}/stagefinal \
         -v "${BASE_DIR}/quirks":${WORKSPACE_DIR}/quirks \
         -v "${BASE_DIR}/release":${WORKSPACE_DIR}/release \
         "${DOCKER_IMAGE}" bash
@@ -68,7 +67,6 @@ case "${HOST_OS}" in
         -v "${BASE_DIR}/logs":${WORKSPACE_DIR}/logs \
         -v "${BASE_DIR}/stage0":${WORKSPACE_DIR}/stage0 \
         -v "${BASE_DIR}/stage1":${WORKSPACE_DIR}/stage1 \
-        -v "${BASE_DIR}/stagefinal":${WORKSPACE_DIR}/stagefinal \
         -v "${BASE_DIR}/quirks":${WORKSPACE_DIR}/quirks \
         -v "${BASE_DIR}/release":${WORKSPACE_DIR}/release \
         "${DOCKER_IMAGE}" bash -x -c "
