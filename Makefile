@@ -699,23 +699,23 @@ stage1:
 	@mountpoint -q $(STAGE1_CHROOT_ROOTFS_DIR)/proc || \
 		sudo mount --bind /proc $(STAGE1_CHROOT_ROOTFS_DIR)/proc
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/ports on $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/ports)
-	@mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/ports
+	@sudo mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/ports
 	@mountpoint -q $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/ports || \
 		cd $(WORKSPACE_DIR) && sudo mount --bind ports $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/ports
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/sources on $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/sources)
-	@mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/sources
+	@sudo mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/sources
 	@mountpoint -q $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/sources || \
 		cd $(WORKSPACE_DIR) && sudo mount --bind sources $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/sources
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage0 on $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0)
-	@mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0
+	@sudo mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0
 	@mountpoint -q $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0 || \
 		cd $(WORKSPACE_DIR) && sudo mount --bind stage0 $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage0
 	$(call DEBUG, Mounting $(WORKSPACE_DIR)/stage1 on $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1)
-	@mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1
+	@sudo mkdir -p $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1
 	@mountpoint -q $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1 || \
 		cd $(WORKSPACE_DIR) && sudo mount --bind stage1 $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/stage1
 	$(call DEBUG, Copying $(WORKSPACE_DIR)/Makefile on $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/Makefile)
-	@cp $(WORKSPACE_DIR)/Makefile $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/Makefile
+	@sudo cp $(WORKSPACE_DIR)/Makefile $(STAGE1_CHROOT_ROOTFS_DIR)$(WORKSPACE_DIR)/Makefile
 	$(call DEBUG, Setting up chroot environment $(STAGE1_CHROOT_ROOTFS_DIR))
 	@env | grep \
 		-e ^CRUX_ARM_ARCH \
@@ -723,8 +723,9 @@ stage1:
 		-e ^RELEASE_VERSION \
 		-e ^WORKSPACE_DIR \
 		-e ^PKGMK_SOURCE_DIR \
-		-e ^PKGMK_WORK_DIR > $(STAGE1_CHROOT_ROOTFS_DIR)/.env
-	@mkdir -vp $(STAGE1_CHROOT_ROOTFS_DIR)/$(WORKSPACE_DIR)/work
+		-e ^PKGMK_WORK_DIR > $(WORKSPACE_DIR)/.env
+	@sudo mv $(WORKSPACE_DIR)/.env $(STAGE1_CHROOT_ROOTFS_DIR)/
+	@sudo mkdir -vp $(STAGE1_CHROOT_ROOTFS_DIR)/$(WORKSPACE_DIR)/work
 	$(call DEBUG, Entering chroot environment $(STAGE1_CHROOT_ROOTFS_DIR), fixing faulty packages)
 	@sudo chroot $(STAGE1_CHROOT_ROOTFS_DIR) /bin/bash --login -x -e -c \
 		"source /.env; cd $(WORKSPACE_DIR) && \
@@ -769,7 +770,9 @@ $(RELEASE_WORK_DIR):
 
 .PHONY: release
 release: $(RELEASE_TAR_FILE)
-$(RELEASE_TAR_FILE): $(STAGE1_ROOTFS_TAR_FILE)
+$(RELEASE_TAR_FILE):
+	$(call DEBUG, Check for $(STAGE1_ROOTFS_TAR_FILE))
+	@test -f $(STAGE1_ROOTFS_TAR_FILE)
 	$(call DEBUG, Preparing release directory $(RELEASE_WORK_DIR))
 	$(MAKE) -e prepare-release-dir
 	$(call DEBUG, Release final name $(RELEASE_TAR_FILE))
